@@ -4,6 +4,7 @@
 set -euo pipefail
 
 export CUDA_VISIBLE_DEVICES=2
+
 DATA_ROOT="/TRS-SAS/linwei/SegACIL/data_root/VOC2012"
 MODEL="deeplabv3_resnet101"
 LR=0.01
@@ -20,8 +21,8 @@ BUFFER=8196
 OUTPUT_STRIDE=8
 
 
-DEFAULT_BATCH_SIZE=64   # Batch sizes for different steps
-SPECIAL_BATCH_SIZE=32   # Batch size for step=0
+DEFAULT_BATCH_SIZE=16   # Batch sizes for different steps
+SPECIAL_BATCH_SIZE=16   # Batch size for step=0
 
 
 # Loop through steps
