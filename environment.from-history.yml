@@ -1,6 +1,0 @@
-name: segacil
-channels:
-  - conda-forge
-dependencies:
-  - python=3.10
-prefix: /opt/conda/envs/segacil
