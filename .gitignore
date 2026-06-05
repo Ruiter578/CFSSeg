@@ -50,6 +50,9 @@ _darcs
 /models
 /snippet
 
+# project files
+conda-segacil-explicit.txt
+environment-segacil.yml
 # exclude specific directories
 checkpoints/
 data_root/
