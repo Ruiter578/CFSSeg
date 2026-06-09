@@ -68,7 +68,8 @@ class Trainer(object):
         self.root_path = f"checkpoints/{opts.subpath}/{opts.dataset}/{self.opts.task}/{opts.setting}/step{opts.curr_step}/"
         self.ckpt_str = f"{self.root_path}%s_%s_%s_step_%d_{opts.setting}.pth"
 
-        self.root_path_prev = f"checkpoints/{opts.subpath}/{opts.dataset}/{self.opts.task}/{opts.setting}/step{opts.curr_step-1}/"
+        prev_subpath = opts.base_subpath if opts.base_subpath and opts.curr_step == 1 else opts.subpath
+        self.root_path_prev = f"checkpoints/{prev_subpath}/{opts.dataset}/{self.opts.task}/{opts.setting}/step{opts.curr_step-1}/"
         self.ckpt_str_prev = f"{self.root_path_prev}%s_%s_%s_step_%d_{opts.setting}.pth"
         mkdir(self.root_path)
 
@@ -92,6 +93,8 @@ class Trainer(object):
             self.ckpt = self.ckpt_str_prev % (self.opts.model, self.opts.dataset, self.opts.task, self.opts.curr_step - 1)
         elif self.opts.curr_step > 1:
             self.ckpt = self.root_path_prev + "final.pth"
+        if self.opts.curr_step == 1 and self.opts.base_subpath:
+            print(f"Loading step0 checkpoint from base_subpath '{self.opts.base_subpath}': {self.ckpt}")
 
 
         self.best_score = -1
@@ -221,6 +224,7 @@ class Trainer(object):
             self.opts.curr_step = 0
             self.train_loader0, self.val_loader0, self.test_loader0 = init_dataloader(self.opts)
             self.root_path0 = f"checkpoints/{self.opts.subpath}/{self.opts.dataset}/{self.opts.task}/{self.opts.setting}/step0/"
+            mkdir(self.root_path0)
             self.model = load_ckpt(self.ckpt)[0]
             self.model = self.model.to(self.device)
             print("make new model!")

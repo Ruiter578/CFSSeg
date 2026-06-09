@@ -38,6 +38,7 @@ class Config:
     val_interval: int = 100
 
     subpath: Optional[str] = None
+    base_subpath: Optional[str] = None
     
     # GPU
     gpu_id: list[int] = None
@@ -106,6 +107,8 @@ def get_argparser() -> Config:
     parser.add_argument("--val_interval", type=int, default=Config.val_interval, help="epoch interval for eval (default: 100)")
 
     parser.add_argument("--subpath", type=str, default=Config.subpath, help="subpath for saving ckpt and log")
+    parser.add_argument("--base_subpath", type=str, default=Config.base_subpath,
+                        help="subpath for loading the step0 DeepLab checkpoint when curr_step is 1")
 
     # CIL Options
     parser.add_argument("--task", type=str, default=Config.task, help="cil task")

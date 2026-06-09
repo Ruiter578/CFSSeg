@@ -10,9 +10,10 @@ MODEL="deeplabv3_resnet101"
 LR=0.01
 LOSS_TYPE="bce_loss"
 DATASET="voc"
-TASK="15-1"
+TASK="15-5"
 LR_POLICY="poly"
-SUBPATH="1128"
+SUBPATH="${SUBPATH:-$(date +%Y%m%d)}"
+BASE_SUBPATH="${BASE_SUBPATH:-}"
 METHOD="acil"
 SETTING="sequential"
 TRAIN_EPOCH=50
@@ -21,14 +22,19 @@ BUFFER=8196
 OUTPUT_STRIDE=8
 
 
-DEFAULT_BATCH_SIZE=64   # Batch sizes for different steps
+DEFAULT_BATCH_SIZE=32   # Batch sizes for different steps
 SPECIAL_BATCH_SIZE=32   # Batch size for step=0
 
 
 # Loop through steps
 START_STEP=1
-END_STEP=5
+END_STEP=1
 STEP_INCREMENT=1
+
+BASE_SUBPATH_ARG=()
+if [[ -n "$BASE_SUBPATH" ]]; then
+    BASE_SUBPATH_ARG=(--base_subpath "$BASE_SUBPATH")
+fi
 
 for ((CURR_STEP=$START_STEP; CURR_STEP<=$END_STEP; CURR_STEP+=$STEP_INCREMENT))
 do
@@ -50,6 +56,7 @@ do
         --lr_policy $LR_POLICY \
         --curr_step $CURR_STEP \
         --subpath $SUBPATH \
+        "${BASE_SUBPATH_ARG[@]}" \
         --method $METHOD \
         --setting $SETTING \
         $PRETRAINED_BACKBONE \
