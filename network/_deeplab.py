@@ -26,37 +26,44 @@ class DeepLabV3(_SimpleSegmentationModel):
 class DeepLabHeadV3Plus(nn.Module):
     def __init__(self, in_channels, low_level_channels, num_classes, aspp_dilate=[12, 24, 36]):
         super(DeepLabHeadV3Plus, self).__init__()
-        self.project = nn.Sequential( 
+        self.project = nn.Sequential(
             nn.Conv2d(low_level_channels, 48, 1, bias=False),
             nn.BatchNorm2d(48),
             nn.ReLU(inplace=True),
         )
 
         self.aspp = ASPP(in_channels, aspp_dilate)
-
-        self.head = nn.ModuleList(
-            [
-                 nn.Sequential(
-                    nn.Conv2d(304, 256, 3, padding=1, bias=False),
-                    nn.BatchNorm2d(256),
-                    nn.ReLU(inplace=True),
-                    nn.Conv2d(256, c, 1)
-                ) for c in num_classes]
+        self.decoder = nn.Sequential(
+            nn.Conv2d(304, 256, 3, padding=1, bias=False),
+            nn.BatchNorm2d(256),
+            nn.ReLU(inplace=True),
+        )
+        self.head = nn.Sequential(
+            nn.Linear(256, sum(num_classes)),
         )
         
         self._init_weight()
 
     def forward(self, feature):
-        low_level_feature = self.project( feature['low_level'] )
-        output_feature = self.aspp(feature['out'])
+        back_out = feature['out']
+        low_level_feature = self.project(feature['low_level'])
+        output_feature = self.aspp(back_out)
         output_feature = F.interpolate(output_feature, size=low_level_feature.shape[2:], mode='bilinear', align_corners=False)
         
-        output_feature = torch.cat( [ low_level_feature, output_feature ], dim=1 )
-        
-        heads = [h(output_feature) for h in self.head]
-        heads = torch.cat(heads, dim=1)
-        
-        return heads
+        decoder_feature = torch.cat([low_level_feature, output_feature], dim=1)
+        decoder_feature = self.decoder(decoder_feature)
+
+        B, C, H, W = decoder_feature.shape
+        flat_feature = decoder_feature.view(B, C, -1).permute(0, 2, 1)
+        flat_output = self.head(flat_feature)
+        heads = flat_output.permute(0, 2, 1).view(B, -1, H, W)
+
+        return heads, {
+            "feature": flat_output,
+            "decoder_feature": decoder_feature,
+            "back_out": back_out,
+            "low_level": low_level_feature,
+        }
     
     def _init_weight(self):
         for m in self.modules():
@@ -70,7 +77,7 @@ class DeepLabHeadV3Plus(nn.Module):
                 
     def _head_initialize(self):
         for m in self.head:
-            if isinstance(m, nn.Conv2d):
+            if isinstance(m, (nn.Conv2d, nn.Linear)):
                 nn.init.kaiming_normal_(m.weight)
 
 class DeepLabHead(nn.Module):

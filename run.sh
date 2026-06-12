@@ -5,31 +5,32 @@ export CUDA_VISIBLE_DEVICES=0
 
 # DATA_ROOT="/mnt/petrelfs/lirui/SegACIL/datasets/data/voc"
 
-DATA_ROOT="/root/2TStorage/lyc/SegACIL/data_root/VOC2012"
-MODEL="deeplabv3_resnet101"
-LR=0.01
-LOSS_TYPE="bce_loss"
-DATASET="voc"
-TASK="15-5"
-LR_POLICY="poly"
+DATA_ROOT="${DATA_ROOT:-/root/2TStorage/lyc/SegACIL/data_root/VOC2012}"
+MODEL="${MODEL:-deeplabv3_resnet101}"
+LR="${LR:-0.01}"
+LOSS_TYPE="${LOSS_TYPE:-bce_loss}"
+DATASET="${DATASET:-voc}"
+TASK="${TASK:-15-5}"
+LR_POLICY="${LR_POLICY:-poly}"
 SUBPATH="${SUBPATH:-$(date +%Y%m%d)}"
 BASE_SUBPATH="${BASE_SUBPATH:-}"
-METHOD="acil"
-SETTING="sequential"
-TRAIN_EPOCH=50
-PRETRAINED_BACKBONE="--pretrained_backbone"
-BUFFER=8196
-OUTPUT_STRIDE=8
+METHOD="${METHOD:-acil}"
+SETTING="${SETTING:-sequential}"
+TRAIN_EPOCH="${TRAIN_EPOCH:-50}"
+PRETRAINED_BACKBONE="${PRETRAINED_BACKBONE:---pretrained_backbone}"
+BUFFER="${BUFFER:-8196}"
+OUTPUT_STRIDE="${OUTPUT_STRIDE:-8}"
+GAMMA="${GAMMA:-1}"
 
 
-DEFAULT_BATCH_SIZE=32   # Batch sizes for different steps
-SPECIAL_BATCH_SIZE=32   # Batch size for step=0
+DEFAULT_BATCH_SIZE="${DEFAULT_BATCH_SIZE:-32}"   # Batch sizes for different steps
+SPECIAL_BATCH_SIZE="${SPECIAL_BATCH_SIZE:-32}"   # Batch size for step=0
 
 
 # Loop through steps
-START_STEP=1
-END_STEP=1
-STEP_INCREMENT=1
+START_STEP="${START_STEP:-1}"
+END_STEP="${END_STEP:-1}"
+STEP_INCREMENT="${STEP_INCREMENT:-1}"
 
 BASE_SUBPATH_ARG=()
 if [[ -n "$BASE_SUBPATH" ]]; then
@@ -62,7 +63,7 @@ do
         $PRETRAINED_BACKBONE \
         --crop_val \
         --train_epoch $TRAIN_EPOCH \
-        --gamma 1 \
+        --gamma "$GAMMA" \
         --buffer $BUFFER \
         --output_stride $OUTPUT_STRIDE
 done

@@ -50,10 +50,14 @@ class DeepLabModelFactory:
         inplanes = 2048
         low_level_planes = 256
 
-        return_layers = {'layer4': 'out'}
         if name == 'deeplabv3':
+            return_layers = {'layer4': 'out'}
             classifier = DeepLabHead(inplanes, num_classes, aspp_dilate)
+        elif name == 'deeplabv3plus':
+            return_layers = {'layer4': 'out', 'layer1': 'low_level'}
+            classifier = DeepLabHeadV3Plus(inplanes, low_level_planes, num_classes, aspp_dilate)
         elif name == "deeplabv3_bga":
+            return_layers = {'layer4': 'out'}
             classifier = DeepLabHeadBgA(inplanes, num_classes, aspp_dilate)
         else:
             raise ValueError(f"Unsupported model name '{name}' for ResNet backbone.")
