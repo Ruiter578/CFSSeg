@@ -75,8 +75,13 @@ class Trainer(object):
 
         self.train_loader, self.val_loader, self.test_loader = init_dataloader(opts)
         self.total_itrs = self.opts.train_epoch * len(self.train_loader)
+        self.scheduler_total_itrs = self.total_itrs + max(0, self.opts.curr_itrs)
         self.val_interval = max(100, self.total_itrs // 100)
         print(f"train epoch : {self.opts.train_epoch} , iterations : {self.total_itrs} , val_interval : {self.val_interval}")
+        if self.opts.curr_itrs > 0:
+            print(f"resume completed iterations : {self.opts.curr_itrs} , scheduler total iterations : {self.scheduler_total_itrs}")
+
+        self.best_score = -1
         
         # init model
         if opts.curr_step == 0:
@@ -84,7 +89,13 @@ class Trainer(object):
             self.init_models()
             self.init_ckpt()
             self.optimizer = self.init_optimizer()
-            self.scheduler = build_scheduler(opts, self.optimizer, self.total_itrs)
+            if self.opts.ckpt is not None:
+                self.resume_step0_ckpt(self.opts.ckpt)
+            self.scheduler = build_scheduler(opts, self.optimizer, self.scheduler_total_itrs)
+            if self.opts.curr_itrs > 0:
+                self.scheduler.last_epoch = self.opts.curr_itrs
+                for param_group, lr in zip(self.optimizer.param_groups, self.scheduler.get_lr()):
+                    param_group['lr'] = lr
             self.criterion = build_criterion(opts)
 
         
@@ -97,8 +108,6 @@ class Trainer(object):
             print(f"Loading step0 checkpoint from base_subpath '{self.opts.base_subpath}': {self.ckpt}")
 
 
-        self.best_score = -1
-
         # Set up metrics
         self.metrics = StreamSegMetrics(opts.num_classes, dataset=opts.dataset)
         self.avg_loss = AverageMeter()
@@ -109,6 +118,28 @@ class Trainer(object):
 
         if opts.use_pseudo_label:
             print("use Pseudo Labeling")
+
+    def resume_step0_ckpt(self, ckpt_path):
+        if not os.path.isfile(ckpt_path):
+            raise FileNotFoundError(f"Checkpoint file '{ckpt_path}' does not exist.")
+
+        checkpoint = torch.load(ckpt_path, map_location=torch.device('cpu'))
+        model_state = checkpoint.get("model_state")
+        if model_state is None:
+            raise KeyError(f"The checkpoint '{ckpt_path}' does not contain 'model_state'.")
+
+        self.model.load_state_dict(model_state, strict=True)
+
+        optimizer_state = checkpoint.get("optimizer_state")
+        if optimizer_state is not None:
+            self.optimizer.load_state_dict(optimizer_state)
+
+        best_score = checkpoint.get("best_score")
+        if best_score is not None:
+            self.best_score = best_score
+
+        self.model = self.model.to(self.device)
+        print(f"Step0 training resumed from {ckpt_path}")
 
     def init_models(self):
         # Set up model
