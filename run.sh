@@ -20,6 +20,10 @@ TRAIN_EPOCH=50
 PRETRAINED_BACKBONE="--pretrained_backbone"
 BUFFER=8196
 OUTPUT_STRIDE=8
+GAMMA="${GAMMA:-1}"
+RHL_NORM="${RHL_NORM:-none}"
+RHL_NORM_EPS="${RHL_NORM_EPS:-1e-6}"
+RHL_STATS="${RHL_STATS:-0}"
 
 
 DEFAULT_BATCH_SIZE=32   # Batch sizes for different steps
@@ -34,6 +38,11 @@ STEP_INCREMENT=1
 BASE_SUBPATH_ARG=()
 if [[ -n "$BASE_SUBPATH" ]]; then
     BASE_SUBPATH_ARG=(--base_subpath "$BASE_SUBPATH")
+fi
+
+RHL_STATS_ARG=()
+if [[ "$RHL_STATS" == "1" ]]; then
+    RHL_STATS_ARG=(--rhl_stats)
 fi
 
 for ((CURR_STEP=$START_STEP; CURR_STEP<=$END_STEP; CURR_STEP+=$STEP_INCREMENT))
@@ -62,7 +71,10 @@ do
         $PRETRAINED_BACKBONE \
         --crop_val \
         --train_epoch $TRAIN_EPOCH \
-        --gamma 1 \
+        --gamma "$GAMMA" \
         --buffer $BUFFER \
+        --rhl_norm "$RHL_NORM" \
+        --rhl_norm_eps "$RHL_NORM_EPS" \
+        "${RHL_STATS_ARG[@]}" \
         --output_stride $OUTPUT_STRIDE
 done

@@ -16,18 +16,43 @@ from utils import *
 from datasets import *
 
 class AIR(nn.Module):
-    def __init__(self, backbone_output, backbone, buffer_size, gamma, device=None, dtype=torch.double, linear=RecursiveLinear, learned_classes=None):
+    def __init__(
+        self,
+        backbone_output,
+        backbone,
+        buffer_size,
+        gamma,
+        device=None,
+        dtype=torch.double,
+        linear=RecursiveLinear,
+        learned_classes=None,
+        rhl_norm="none",
+        rhl_norm_eps=1e-6,
+        rhl_stats=False,
+    ):
         super(AIR, self).__init__()
         factory_kwargs = {"device": device, "dtype": dtype}
         self.backbone = backbone
         self.backbone_output = backbone_output
         self.buffer_size = buffer_size
-        self.buffer = RandomBuffer(backbone_output, buffer_size, **factory_kwargs)
+        # RandomBuffer remains a fixed random feature lift.  rhl_norm only changes
+        # the deterministic feature interface passed into RecursiveLinear; it does
+        # not introduce trainable parameters or alter the C-RLS update formula.
+        self.buffer = RandomBuffer(
+            backbone_output,
+            buffer_size,
+            rhl_norm=rhl_norm,
+            rhl_norm_eps=rhl_norm_eps,
+            **factory_kwargs,
+        )
         self.analytic_linear = linear(buffer_size, gamma, **factory_kwargs)
         self.H = 0
         self.W = 0
         self.channle = 0
         self.B = 0
+        self.rhl_stats = rhl_stats
+        self.rhl_stats_count = 0
+        self.rhl_stats_max_batches = 3
         self.eval()
     
     @torch.no_grad()
@@ -36,7 +61,22 @@ class AIR(nn.Module):
         self.B, self.channle, self.H, self.W = X.shape
         # 16 256 33 33
         X = X.view(self.B,self.channle,-1).permute(0,2,1) # B, H*W, c
-        return self.buffer(X) # B, H*W, C -> B, H*W, buffer_size
+        X = self.buffer(X) # B, H*W, C -> B, H*W, buffer_size
+        if self.rhl_stats and self.rhl_stats_count < self.rhl_stats_max_batches:
+            row_norm = X.norm(dim=-1)
+            print(
+                "[RHL stats] "
+                f"mode={getattr(self.buffer, 'rhl_norm', 'none')} "
+                f"eps={getattr(self.buffer, 'rhl_norm_eps', 1e-6)} "
+                f"mean={row_norm.mean().item():.6f} "
+                f"std={row_norm.std().item():.6f} "
+                f"min={row_norm.min().item():.6f} "
+                f"max={row_norm.max().item():.6f} "
+                f"nan={torch.isnan(X).any().item()} "
+                f"inf={torch.isinf(X).any().item()}"
+            )
+            self.rhl_stats_count += 1
+        return X
     
     @torch.no_grad()
     def forward(self, X):
@@ -240,6 +280,9 @@ class Trainer(object):
                 device=self.device,
                 dtype=torch.double,
                 linear=RecursiveLinear,
+                rhl_norm=self.opts.rhl_norm,
+                rhl_norm_eps=self.opts.rhl_norm_eps,
+                rhl_stats=self.opts.rhl_stats,
             ).to(self.device).eval()
             for seq, (X, y, _) in enumerate(self.train_loader0):
                 X, y = X.to(self.device), y.to(self.device)

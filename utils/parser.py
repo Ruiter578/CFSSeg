@@ -57,6 +57,9 @@ class Config:
     buffer: int = 16384
     gamma: float = 10.0
     method: str = 'None'
+    rhl_norm: str = 'none'
+    rhl_norm_eps: float = 1e-6
+    rhl_stats: bool = False
 
     use_pseudo_label: bool = False
     pseudo_label_confidence: float = 0.7
@@ -122,6 +125,25 @@ def get_argparser() -> Config:
     parser.add_argument("--buffer", type=int, default=Config.buffer, help="buffer size")
     parser.add_argument("--gamma", type=float, default=Config.gamma, help="gamma value")
     parser.add_argument("--method", type=str, default=Config.method, help="method value")
+    parser.add_argument(
+        "--rhl_norm",
+        type=str,
+        default=Config.rhl_norm,
+        choices=['none', 'l2', 'l2_sqrt', 'layernorm'],
+        help="normalization applied to RHL outputs before the analytic classifier"
+    )
+    parser.add_argument(
+        "--rhl_norm_eps",
+        type=float,
+        default=Config.rhl_norm_eps,
+        help="epsilon used by RHL output normalization"
+    )
+    parser.add_argument(
+        "--rhl_stats",
+        action='store_true',
+        default=Config.rhl_stats,
+        help="print lightweight RHL output statistics for the first few fit batches"
+    )
 
     parser.add_argument("--use_pseudo_label", action='store_true', default=Config.use_pseudo_label, help="is use pseudo label")
     parser.add_argument("--pseudo_label_confidence", type=float, default=Config.pseudo_label_confidence, help="use the label confidence")

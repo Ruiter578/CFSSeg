@@ -17,7 +17,9 @@ References:
     arXiv preprint arXiv:2403.15706 (2024).
 """
 
+import math
 import torch
+import torch.nn.functional as F
 from typing import Optional, Union, Callable
 from abc import ABCMeta, abstractmethod
 
@@ -43,11 +45,15 @@ class RandomBuffer(torch.nn.Linear, Buffer):
         device=None,
         dtype=torch.float,
         activation: Optional[activation_t] = torch.relu_,
+        rhl_norm: str = "none",
+        rhl_norm_eps: float = 1e-6,
     ) -> None:
         super(torch.nn.Linear, self).__init__()
         factory_kwargs = {"device": device, "dtype": dtype}
         self.in_features = in_features
         self.out_features = out_features
+        self.rhl_norm = rhl_norm
+        self.rhl_norm_eps = rhl_norm_eps
         self.activation: activation_t = (
             torch.nn.Identity() if activation is None else activation
         )
@@ -64,9 +70,32 @@ class RandomBuffer(torch.nn.Linear, Buffer):
 
     @torch.no_grad()
     def forward(self, X: torch.Tensor) -> torch.Tensor:
-        # X: B, H*W, C
+        # X: [B, H*W, C]. RHL first applies the fixed random projection and
+        # non-linearity from CFSSeg, then optionally normalizes each pixel's
+        # high-dimensional feature vector before C-RLS consumes it.
         X = X.to(self.weight)
-        return self.activation(super().forward(X))
+        Z = self.activation(super().forward(X))
+
+        # Old AIR checkpoints were saved before these attributes existed.  Use
+        # getattr defaults so those pickled models still run with baseline RHL.
+        norm = getattr(self, "rhl_norm", "none")
+        eps = getattr(self, "rhl_norm_eps", 1e-6)
+
+        if norm == "none":
+            return Z
+        if norm == "l2":
+            # Pure row-wise L2 normalization: every pixel feature has unit norm.
+            return F.normalize(Z, p=2, dim=-1, eps=eps)
+        if norm == "l2_sqrt":
+            # Preserve the feature direction and keep total row energy near the
+            # original high-dimensional scale, which makes gamma=1 less distorted
+            # than pure L2 when buffer is large.
+            return F.normalize(Z, p=2, dim=-1, eps=eps) * math.sqrt(Z.shape[-1])
+        if norm == "layernorm":
+            # No affine parameters: this is still a fixed feature transform, not
+            # a trainable normalization layer that would change the closed-form story.
+            return F.layer_norm(Z, (Z.shape[-1],), weight=None, bias=None, eps=eps)
+        raise ValueError(f"Unknown rhl_norm: {norm}")
 
 
 class GaussianKernel(Buffer):
