@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-export CUDA_VISIBLE_DEVICES=0
+export CUDA_VISIBLE_DEVICES=2
 
 # DATA_ROOT="/mnt/petrelfs/lirui/SegACIL/datasets/data/voc"
 
