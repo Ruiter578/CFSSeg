@@ -44,6 +44,8 @@ def get_args():
     parser.add_argument("--mode", default="test", choices=["val", "test"])
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--save_json", default=None)
+    parser.add_argument("--weights", nargs="+", type=float, default=None,
+                        help="Optional ensemble weights aligned with --ckpts. They are normalized internally.")
     parser.add_argument("--keep_models_on_gpu", action="store_true",
                         help="Keep all ensemble members on GPU. Faster but uses more memory.")
     parser.add_argument("--max_batches", type=int, default=-1,
@@ -124,6 +126,21 @@ def to_jsonable(obj):
     return obj
 
 
+def normalize_weights(weights, num_models):
+    if weights is None:
+        return [1.0 / num_models] * num_models
+    if len(weights) != num_models:
+        raise ValueError(
+            f"--weights expects {num_models} values to match --ckpts, got {len(weights)}"
+        )
+    if any(weight < 0 for weight in weights):
+        raise ValueError("--weights must be non-negative")
+    total = sum(weights)
+    if total <= 0:
+        raise ValueError("--weights sum must be greater than 0")
+    return [weight / total for weight in weights]
+
+
 def main():
     args = get_args()
     device = torch.device(args.device if torch.cuda.is_available() and args.device != "cpu" else "cpu")
@@ -134,6 +151,10 @@ def main():
     n_classes = sum(opts.num_classes)
 
     models = [load_model_cpu(path) for path in args.ckpts]
+    weights = normalize_weights(args.weights, len(models))
+    print("Ensemble weights:")
+    for path, weight in zip(args.ckpts, weights):
+        print(f"  {weight:.6f}  {path}")
     if args.keep_models_on_gpu:
         # 显存足够时可一次性常驻 GPU，速度更快；默认不用，优先保证不 OOM。
         models = [model.to(device).eval() for model in models]
@@ -146,9 +167,9 @@ def main():
 
             images = images.to(device, dtype=torch.float32, non_blocking=True)
             labels_device = labels.to(device, dtype=torch.long, non_blocking=True)
-            prob_sum = None
+            weighted_prob_sum = None
 
-            for model in models:
+            for model, weight in zip(models, weights):
                 if not args.keep_models_on_gpu:
                     # 低显存模式：每次只把一个成员放上 GPU，算完立即搬回 CPU。
                     model = model.to(device).eval()
@@ -161,14 +182,20 @@ def main():
                     opts.loss_type,
                     n_classes,
                 )
-                prob_sum = probs if prob_sum is None else prob_sum + probs
+                # 加权概率平均：默认权重是 1/K；传入 --weights 后先归一化再加权。
+                weighted_probs = probs * weight
+                weighted_prob_sum = (
+                    weighted_probs
+                    if weighted_prob_sum is None
+                    else weighted_prob_sum + weighted_probs
+                )
                 if not args.keep_models_on_gpu:
                     model.cpu()
                     if device.type == "cuda":
                         torch.cuda.empty_cache()
 
-            # 像素级概率平均：这是 RHL-SE 最终形成集成预测的地方。
-            prob_ens = prob_sum / len(models)
+            # 像素级概率平均/加权平均：这是 RHL-SE 最终形成集成预测的地方。
+            prob_ens = weighted_prob_sum
             preds = prob_ens.detach().max(dim=1)[1].cpu().numpy()
             targets = labels.numpy()
             metrics.update(targets, preds)
@@ -181,12 +208,17 @@ def main():
     results[f"{first_cls} to {len(class_iou) - 1} mIoU"] = np.mean(class_iou[first_cls:])
     results[f"0 to {first_cls - 1} mAcc"] = np.mean(class_acc[:first_cls])
     results[f"{first_cls} to {len(class_iou) - 1} mAcc"] = np.mean(class_acc[first_cls:])
-    results["Ensemble Members"] = args.ckpts
-    results["Ensemble Size"] = len(args.ckpts)
 
+    # 项目原生 metrics.to_str() 假设 results 里的非 Class IoU/Acc 字段全是 float。
+    # Ensemble Members 是 checkpoint 路径列表，如果提前放进 results，会触发
+    # TypeError: must be real number, not list。这里先打印纯数值结果，再补充集成元信息。
     print(metrics.to_str(results))
     print(f"...from 0 to {first_cls - 1} : ensemble/test_before_mIoU : {results[f'0 to {first_cls - 1} mIoU']:.6f}")
     print(f"...from {first_cls} to {len(class_iou) - 1} ensemble/test_after_mIoU : {results[f'{first_cls} to {len(class_iou) - 1} mIoU']:.6f}")
+
+    results["Ensemble Members"] = args.ckpts
+    results["Ensemble Size"] = len(args.ckpts)
+    results["Ensemble Weights"] = weights
 
     save_json = args.save_json
     if save_json is None:
