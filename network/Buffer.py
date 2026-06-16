@@ -47,6 +47,7 @@ class RandomBuffer(torch.nn.Linear, Buffer):
         activation: Optional[activation_t] = torch.relu_,
         rhl_norm: str = "none",
         rhl_norm_eps: float = 1e-6,
+        rhl_seed: int = -1,
     ) -> None:
         super(torch.nn.Linear, self).__init__()
         factory_kwargs = {"device": device, "dtype": dtype}
@@ -54,6 +55,7 @@ class RandomBuffer(torch.nn.Linear, Buffer):
         self.out_features = out_features
         self.rhl_norm = rhl_norm
         self.rhl_norm_eps = rhl_norm_eps
+        self.rhl_seed = rhl_seed
         self.activation: activation_t = (
             torch.nn.Identity() if activation is None else activation
         )
@@ -61,23 +63,45 @@ class RandomBuffer(torch.nn.Linear, Buffer):
         W = torch.empty((out_features, in_features), **factory_kwargs)
         b = torch.empty(out_features, **factory_kwargs) if bias else None
 
-        # Using buffer instead of parameter
+        # 使用 buffer 而不是 Parameter：RHL 是固定随机映射，不参与反向传播训练。
         self.register_buffer("weight", W)
         self.register_buffer("bias", b)
 
-        # Random Initialization
-        self.reset_parameters()
+        # 随机初始化：
+        # - rhl_seed < 0：保持原始代码行为，使用当前全局 RNG 状态初始化 RHL；
+        # - rhl_seed >= 0：只重置 RandomBuffer/RHL 的随机映射，形成 RHL-SE 的不同成员；
+        # - fork_rng 会在初始化后恢复外部 RNG 状态，因此不会改变 DataLoader 顺序、
+        #   数据增强、RecursiveLinear 初始化等其他随机过程。
+        self._reset_parameters_with_optional_seed(rhl_seed)
+
+    def _reset_parameters_with_optional_seed(self, rhl_seed: int) -> None:
+        # -1 是兼容开关：不指定 RHL 独立种子时，完全走 PyTorch Linear 原本初始化。
+        if rhl_seed is None or int(rhl_seed) < 0:
+            self.reset_parameters()
+            return
+
+        seed = int(rhl_seed)
+        cuda_devices = []
+        if self.weight.is_cuda:
+            cuda_devices = [self.weight.device.index or 0]
+
+        # 只在这个上下文里临时切换随机种子。退出后 PyTorch 会恢复进入前的 RNG 状态，
+        # 这是区分“只改 RHL 随机映射”和“改全局 random_seed”的关键实现。
+        with torch.random.fork_rng(devices=cuda_devices):
+            torch.manual_seed(seed)
+            if self.weight.is_cuda:
+                torch.cuda.manual_seed_all(seed)
+            self.reset_parameters()
 
     @torch.no_grad()
     def forward(self, X: torch.Tensor) -> torch.Tensor:
-        # X: [B, H*W, C]. RHL first applies the fixed random projection and
-        # non-linearity from CFSSeg, then optionally normalizes each pixel's
-        # high-dimensional feature vector before C-RLS consumes it.
+        # X: [B, H*W, C]。RHL 先执行 CFSSeg 原论文中的固定随机投影和非线性激活，
+        # 然后可选地对每个像素的高维随机特征做归一化，再交给 C-RLS 闭式分类器。
         X = X.to(self.weight)
         Z = self.activation(super().forward(X))
 
-        # Old AIR checkpoints were saved before these attributes existed.  Use
-        # getattr defaults so those pickled models still run with baseline RHL.
+        # 兼容旧 AIR checkpoint：旧模型里没有 rhl_norm / rhl_norm_eps 属性，
+        # 用 getattr 默认值可以让旧权重仍按 baseline RHL 逻辑推理。
         norm = getattr(self, "rhl_norm", "none")
         eps = getattr(self, "rhl_norm_eps", 1e-6)
 

@@ -23,10 +23,14 @@ OUTPUT_STRIDE=8
 GAMMA="${GAMMA:-1}"
 RHL_NORM="${RHL_NORM:-none}"
 RHL_NORM_EPS="${RHL_NORM_EPS:-1e-6}"
+# RHL_SEED 是方案一 RHL-SE 的独立随机种子：
+# - 默认 -1 表示完全沿用原始 RHL 初始化逻辑；
+# - 设为非负整数时，只改变 RandomBuffer 的随机映射，不改变全局 random_seed。
+RHL_SEED="${RHL_SEED:--1}"
 RHL_STATS="${RHL_STATS:-0}"
 
 
-DEFAULT_BATCH_SIZE=32   # Batch sizes for different steps
+DEFAULT_BATCH_SIZE=64   # Batch sizes for different steps
 SPECIAL_BATCH_SIZE=32   # Batch size for step=0
 
 
@@ -37,11 +41,13 @@ STEP_INCREMENT=1
 
 BASE_SUBPATH_ARG=()
 if [[ -n "$BASE_SUBPATH" ]]; then
+    # 仅在显式指定 BASE_SUBPATH 时传入，用于 step1 读取已有 step0 权重。
     BASE_SUBPATH_ARG=(--base_subpath "$BASE_SUBPATH")
 fi
 
 RHL_STATS_ARG=()
 if [[ "$RHL_STATS" == "1" ]]; then
+    # 打印 RHL 输出统计信息，仅用于诊断；正式复现实验默认关闭。
     RHL_STATS_ARG=(--rhl_stats)
 fi
 
@@ -54,6 +60,7 @@ do
     fi
 
     echo "Running training for step $CURR_STEP with batch size $CURR_BATCH_SIZE..."
+    # --rhl_seed 是 RHL-SE 的入口参数，最终只传到 RandomBuffer 初始化。
     python train.py \
         --data_root $DATA_ROOT \
         --model $MODEL \
@@ -75,6 +82,7 @@ do
         --buffer $BUFFER \
         --rhl_norm "$RHL_NORM" \
         --rhl_norm_eps "$RHL_NORM_EPS" \
+        --rhl_seed "$RHL_SEED" \
         "${RHL_STATS_ARG[@]}" \
         --output_stride $OUTPUT_STRIDE
 done

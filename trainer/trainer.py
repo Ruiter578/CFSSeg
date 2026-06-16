@@ -28,6 +28,7 @@ class AIR(nn.Module):
         learned_classes=None,
         rhl_norm="none",
         rhl_norm_eps=1e-6,
+        rhl_seed=-1,
         rhl_stats=False,
     ):
         super(AIR, self).__init__()
@@ -35,14 +36,16 @@ class AIR(nn.Module):
         self.backbone = backbone
         self.backbone_output = backbone_output
         self.buffer_size = buffer_size
-        # RandomBuffer remains a fixed random feature lift.  rhl_norm only changes
-        # the deterministic feature interface passed into RecursiveLinear; it does
-        # not introduce trainable parameters or alter the C-RLS update formula.
+        # RandomBuffer 是 CFSSeg/RHL 的固定随机特征映射：
+        # - rhl_norm 只改变送入 RecursiveLinear 前的特征尺度；
+        # - rhl_seed 只改变这一个随机映射的初始化，用于 RHL-SE 多成员构造；
+        # - 二者都不引入可训练参数，也不改 C-RLS 的闭式递推公式。
         self.buffer = RandomBuffer(
             backbone_output,
             buffer_size,
             rhl_norm=rhl_norm,
             rhl_norm_eps=rhl_norm_eps,
+            rhl_seed=rhl_seed,
             **factory_kwargs,
         )
         self.analytic_linear = linear(buffer_size, gamma, **factory_kwargs)
@@ -272,6 +275,9 @@ class Trainer(object):
             self.model.classifier.head = nn.Identity()
             backbone = self.model
             # Overwrite self.model with ACIL model
+            # step1 构造 AIR 时把命令行中的 RHL 控制项接进来。
+            # 这里是方案一真正进入训练逻辑的位置：backbone 和全局随机种子保持不变，
+            # 只有 RandomBuffer 的固定随机映射会根据 opts.rhl_seed 发生变化。
             self.model = AIR(
                 backbone_output=256,
                 backbone = backbone,
@@ -282,6 +288,7 @@ class Trainer(object):
                 linear=RecursiveLinear,
                 rhl_norm=self.opts.rhl_norm,
                 rhl_norm_eps=self.opts.rhl_norm_eps,
+                rhl_seed=self.opts.rhl_seed,
                 rhl_stats=self.opts.rhl_stats,
             ).to(self.device).eval()
             for seq, (X, y, _) in enumerate(self.train_loader0):
