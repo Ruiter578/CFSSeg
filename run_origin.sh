@@ -16,16 +16,16 @@ METHOD="acil"
 SETTING="sequential"
 TRAIN_EPOCH=50
 PRETRAINED_BACKBONE="--pretrained_backbone"
-BUFFER=8196
+BUFFER=8192     # origin value: 8196
 OUTPUT_STRIDE=8
 
 
-DEFAULT_BATCH_SIZE=16   # Batch sizes for different steps
+DEFAULT_BATCH_SIZE=32   # Batch sizes for different steps
 SPECIAL_BATCH_SIZE=16   # Batch size for step=0
 
 
 # Loop through steps
-START_STEP=0
+START_STEP=1
 END_STEP=1
 STEP_INCREMENT=1
 
