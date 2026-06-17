@@ -61,6 +61,8 @@ class Config:
     rhl_norm_eps: float = 1e-6
     # RHL-SE 独立种子。-1 表示不启用独立 RHL 种子，保持原始随机初始化路径。
     rhl_seed: int = -1
+    rhl_init: str = 'gaussian'
+    rhl_scale_mode: str = 'legacy'
     rhl_stats: bool = False
 
     use_pseudo_label: bool = False
@@ -145,6 +147,20 @@ def get_argparser() -> Config:
         type=int,
         default=Config.rhl_seed,
         help="seed used only for RandomBuffer/RHL initialization; -1 follows the global RNG state"
+    )
+    parser.add_argument(
+        "--rhl_init",
+        type=str,
+        default=Config.rhl_init,
+        choices=['gaussian', 'orthogonal', 'orthogonal_antithetic'],
+        help="initialization strategy for RandomBuffer/RHL"
+    )
+    parser.add_argument(
+        "--rhl_scale_mode",
+        type=str,
+        default=Config.rhl_scale_mode,
+        choices=['legacy', 'kaiming', 'unit'],
+        help="scale applied by the selected RandomBuffer/RHL initialization strategy"
     )
     parser.add_argument(
         "--rhl_stats",

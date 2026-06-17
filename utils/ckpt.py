@@ -1,7 +1,7 @@
 import torch
 import utils
 
-def save_ckpt(path, model, optimizer=None, best_score=None):
+def save_ckpt(path, model, optimizer=None, best_score=None, config=None):
     state = {
         "model_state": model.state_dict(), 
         "model_architecture": model
@@ -10,6 +10,8 @@ def save_ckpt(path, model, optimizer=None, best_score=None):
         state["optimizer_state"] = optimizer.state_dict()
     if best_score is not None:
         state["best_score"] = best_score
+    if config is not None:
+        state["training_config"] = config
     torch.save(state, path)
 
 
