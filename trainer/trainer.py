@@ -170,9 +170,11 @@ class Trainer(object):
             return asdict(self.opts)
         return dict(vars(self.opts))
 
-    def _write_run_config(self, path):
+    def _write_run_config(self, path, config=None):
+        if config is None:
+            config = self._checkpoint_config()
         with open(os.path.join(path, "run_config.json"), "w") as f:
-            json.dump(self._checkpoint_config(), f, indent=4, default=str)
+            json.dump(config, f, indent=4, default=str)
 
     def init_models(self):
         # Set up model
@@ -285,11 +287,17 @@ class Trainer(object):
                                 self.model, self.optimizer, self.best_score, config=self._checkpoint_config())
                 save_ckpt(self.root_path + "final.pth", self.model, self.optimizer, curr_score, config=self._checkpoint_config())
         elif self.opts.curr_step == 1:
+            step_config = self._checkpoint_config()
+            original_curr_step = self.opts.curr_step
             self.opts.curr_step = 0
-            self.train_loader0, self.val_loader0, self.test_loader0 = init_dataloader(self.opts)
+            try:
+                self.train_loader0, self.val_loader0, self.test_loader0 = init_dataloader(self.opts)
+                realign_config = self._checkpoint_config()
+            finally:
+                self.opts.curr_step = original_curr_step
             self.root_path0 = f"checkpoints/{self.opts.subpath}/{self.opts.dataset}/{self.opts.task}/{self.opts.setting}/step0/"
             mkdir(self.root_path0)
-            self._write_run_config(self.root_path0)
+            self._write_run_config(self.root_path0, config=realign_config)
             self.model = load_ckpt(self.ckpt)[0]
             self.model = self.model.to(self.device)
             print("make new model!")
@@ -320,7 +328,7 @@ class Trainer(object):
                 self.model.fit(X, y)
             self.model.update()
             print("start test!")
-            save_ckpt(self.root_path0 + "final.pth", self.model, None, None, config=self._checkpoint_config())
+            save_ckpt(self.root_path0 + "final.pth", self.model, None, None, config=realign_config)
             del self.model
             self.do_evaluate_after_realign(mode='test')
 
@@ -333,7 +341,7 @@ class Trainer(object):
                     y=self.get_pseudo_labels(X, y)
                 self.model.fit(X, y)
             self.model.update()
-            save_ckpt(self.root_path + "final.pth", self.model, None, None, config=self._checkpoint_config())
+            save_ckpt(self.root_path + "final.pth", self.model, None, None, config=step_config)
             self.do_evaluate(mode='test')
         else:
             self.model = load_ckpt(self.ckpt)[0].to(self.device).eval()

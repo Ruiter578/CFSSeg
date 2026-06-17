@@ -1,4 +1,5 @@
 import math
+import json
 import sys
 import tempfile
 import unittest
@@ -7,6 +8,7 @@ from unittest.mock import patch
 import torch
 
 from network.Buffer import RandomBuffer
+from trainer.trainer import Trainer
 from utils.ckpt import save_ckpt
 from utils.parser import get_argparser
 
@@ -135,6 +137,17 @@ class RandomBufferBOATest(unittest.TestCase):
             checkpoint = torch.load(tmp.name, map_location="cpu")
 
         self.assertEqual(checkpoint["training_config"], config)
+
+    def test_write_run_config_accepts_explicit_config_snapshot(self):
+        trainer = Trainer.__new__(Trainer)
+        explicit_config = {"curr_step": 0, "rhl_init": "orthogonal"}
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            trainer._write_run_config(tmpdir, config=explicit_config)
+            with open(f"{tmpdir}/run_config.json") as f:
+                saved = json.load(f)
+
+        self.assertEqual(saved, explicit_config)
 
 
 if __name__ == "__main__":
