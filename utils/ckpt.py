@@ -2,7 +2,7 @@ from pathlib import Path
 
 import torch
 
-def save_ckpt(path, model, optimizer=None, best_score=None):
+def save_ckpt(path, model, optimizer=None, best_score=None, config=None):
     checkpoint_path = Path(path)
     checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
     state = {
@@ -13,6 +13,8 @@ def save_ckpt(path, model, optimizer=None, best_score=None):
         state["optimizer_state"] = optimizer.state_dict()
     if best_score is not None:
         state["best_score"] = best_score
+    if config is not None:
+        state["training_config"] = config
     torch.save(state, checkpoint_path)
 
 

@@ -48,6 +48,8 @@ class RandomBuffer(torch.nn.Linear, Buffer):
         rhl_norm: str = "none",
         rhl_norm_eps: float = 1e-6,
         rhl_seed: int = -1,
+        rhl_init: str = "gaussian",
+        rhl_scale_mode: str = "legacy",
     ) -> None:
         super(torch.nn.Linear, self).__init__()
         factory_kwargs = {"device": device, "dtype": dtype}
@@ -56,6 +58,8 @@ class RandomBuffer(torch.nn.Linear, Buffer):
         self.rhl_norm = rhl_norm
         self.rhl_norm_eps = rhl_norm_eps
         self.rhl_seed = rhl_seed
+        self.rhl_init = rhl_init
+        self.rhl_scale_mode = rhl_scale_mode
         self.activation: activation_t = (
             torch.nn.Identity() if activation is None else activation
         )
@@ -75,9 +79,9 @@ class RandomBuffer(torch.nn.Linear, Buffer):
         self._reset_parameters_with_optional_seed(rhl_seed)
 
     def _reset_parameters_with_optional_seed(self, rhl_seed: int) -> None:
-        # -1 是兼容开关：不指定 RHL 独立种子时，完全走 PyTorch Linear 原本初始化。
+        # -1 是兼容开关：不隔离 RHL 独立种子，沿用当前全局 RNG 状态。
         if rhl_seed is None or int(rhl_seed) < 0:
-            self.reset_parameters()
+            self._reset_rhl_parameters()
             return
 
         seed = int(rhl_seed)
@@ -91,7 +95,73 @@ class RandomBuffer(torch.nn.Linear, Buffer):
             torch.manual_seed(seed)
             if self.weight.is_cuda:
                 torch.cuda.manual_seed_all(seed)
+            self._reset_rhl_parameters()
+
+    def _reset_rhl_parameters(self) -> None:
+        if self.rhl_init == "gaussian":
+            self._init_gaussian()
+        elif self.rhl_init == "orthogonal":
+            self._init_orthogonal(antithetic=False)
+        elif self.rhl_init == "orthogonal_antithetic":
+            self._init_orthogonal(antithetic=True)
+        else:
+            raise ValueError(f"Unknown rhl_init: {self.rhl_init}")
+
+    def _init_gaussian(self) -> None:
+        if self.rhl_scale_mode == "legacy":
+            # Preserve the exact PyTorch Linear initialization path used by the
+            # existing baseline. The docs call it gaussian RHL, but the code path
+            # is Linear.reset_parameters(); keeping it avoids baseline drift.
             self.reset_parameters()
+            return
+
+        with torch.no_grad():
+            if self.rhl_scale_mode == "kaiming":
+                self.weight.normal_(mean=0.0, std=math.sqrt(2.0 / self.in_features))
+            elif self.rhl_scale_mode == "unit":
+                self.weight.normal_(mean=0.0, std=1.0)
+                self.weight.copy_(F.normalize(self.weight, p=2, dim=1))
+            else:
+                raise ValueError(f"Unknown rhl_scale_mode: {self.rhl_scale_mode}")
+            if self.bias is not None:
+                self.bias.zero_()
+
+    def _scale_for_mode(self) -> float:
+        if self.rhl_scale_mode == "legacy":
+            # Linear.reset_parameters() gives each row expected norm 1/sqrt(3).
+            return 1.0 / math.sqrt(3.0)
+        if self.rhl_scale_mode == "kaiming":
+            # Orthogonal rows have norm 1. Multiplying by sqrt(2) gives per-entry
+            # std close to sqrt(2 / in_features), matching ReLU/Kaiming scale.
+            return math.sqrt(2.0)
+        if self.rhl_scale_mode == "unit":
+            return 1.0
+        raise ValueError(f"Unknown rhl_scale_mode: {self.rhl_scale_mode}")
+
+    def _init_orthogonal_blocks(self, rows, cols, device, dtype) -> torch.Tensor:
+        blocks = []
+        remain = rows
+        while remain > 0:
+            q, _ = torch.linalg.qr(torch.randn(cols, cols, device=device, dtype=dtype))
+            block = q[: min(cols, remain)]
+            blocks.append(block)
+            remain -= block.shape[0]
+        return torch.cat(blocks, dim=0)
+
+    def _init_orthogonal(self, antithetic: bool) -> None:
+        device = self.weight.device
+        dtype = self.weight.dtype
+        rows = math.ceil(self.out_features / 2) if antithetic else self.out_features
+        base = self._init_orthogonal_blocks(rows, self.in_features, device, dtype)
+        if antithetic:
+            weight = torch.cat([base, -base], dim=0)[: self.out_features]
+        else:
+            weight = base
+
+        with torch.no_grad():
+            self.weight.copy_(weight * self._scale_for_mode())
+            if self.bias is not None:
+                self.bias.zero_()
 
     @torch.no_grad()
     def forward(self, X: torch.Tensor) -> torch.Tensor:

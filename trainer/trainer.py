@@ -3,6 +3,7 @@ import time
 import json
 import copy
 import numpy as np
+from dataclasses import asdict, is_dataclass
 from datetime import datetime
 
 # PyTorch
@@ -32,6 +33,8 @@ class AIR(nn.Module):
         rhl_norm="none",
         rhl_norm_eps=1e-6,
         rhl_seed=-1,
+        rhl_init="gaussian",
+        rhl_scale_mode="legacy",
         rhl_stats=False,
         analytic_tail_epsilon=1e-3,
     ):
@@ -44,13 +47,16 @@ class AIR(nn.Module):
         # RandomBuffer 是 CFSSeg/RHL 的固定随机特征映射：
         # - rhl_norm 只改变送入 RecursiveLinear 前的特征尺度；
         # - rhl_seed 只改变这一个随机映射的初始化，用于 RHL-SE 多成员构造；
-        # - 二者都不引入可训练参数，也不改 C-RLS 的闭式递推公式。
+        # - rhl_init / rhl_scale_mode 改变固定随机基函数的构造，用于 BOA-RHL；
+        # - 这些开关都不引入可训练参数，也不改 C-RLS 的闭式递推公式。
         self.buffer = RandomBuffer(
             backbone_output,
             buffer_size,
             rhl_norm=rhl_norm,
             rhl_norm_eps=rhl_norm_eps,
             rhl_seed=rhl_seed,
+            rhl_init=rhl_init,
+            rhl_scale_mode=rhl_scale_mode,
             **factory_kwargs,
         )
         self.analytic_linear = linear(
@@ -82,10 +88,15 @@ class AIR(nn.Module):
                 "[RHL stats] "
                 f"mode={getattr(self.buffer, 'rhl_norm', 'none')} "
                 f"eps={getattr(self.buffer, 'rhl_norm_eps', 1e-6)} "
+                f"init={getattr(self.buffer, 'rhl_init', 'gaussian')} "
+                f"scale={getattr(self.buffer, 'rhl_scale_mode', 'legacy')} "
                 f"mean={row_norm.mean().item():.6f} "
                 f"std={row_norm.std().item():.6f} "
                 f"min={row_norm.min().item():.6f} "
                 f"max={row_norm.max().item():.6f} "
+                f"sparsity={(X == 0).to(torch.float32).mean().item():.6f} "
+                f"gram_diag_mean={X.to(torch.float32).pow(2).mean(dim=(0, 1)).mean().item():.6f} "
+                f"trace_per_pixel={X.to(torch.float32).pow(2).sum(dim=-1).mean().item():.6f} "
                 f"nan={torch.isnan(X).any().item()} "
                 f"inf={torch.isinf(X).any().item()}"
             )
@@ -191,6 +202,7 @@ class Trainer(object):
         self.root_path_prev = f"checkpoints/{prev_subpath}/{opts.dataset}/{self.opts.task}/{opts.setting}/step{opts.curr_step-1}/"
         self.ckpt_str_prev = f"{self.root_path_prev}%s_%s_%s_step_%d_{opts.setting}.pth"
         mkdir(self.root_path)
+        self._write_run_config(self.root_path)
 
         self.train_loader, self.val_loader, self.test_loader = init_dataloader(opts)
         self.total_itrs = self.opts.train_epoch * len(self.train_loader)
@@ -283,6 +295,15 @@ class Trainer(object):
 
         self.model = self.model.to(self.device)
         print(f"Step0 training resumed from {ckpt_path}")
+
+    def _checkpoint_config(self):
+        if is_dataclass(self.opts):
+            return asdict(self.opts)
+        return dict(vars(self.opts))
+
+    def _write_run_config(self, path):
+        with open(os.path.join(path, "run_config.json"), "w") as f:
+            json.dump(self._checkpoint_config(), f, indent=4, default=str)
 
     def init_models(self):
         # Set up model
@@ -394,13 +415,14 @@ class Trainer(object):
                         print(f"... save best ckpt : {curr_score}")
                         self.best_score = curr_score
                         save_ckpt(self.ckpt_str % (self.opts.model, self.opts.dataset, self.opts.task, self.opts.curr_step), 
-                                self.model, self.optimizer, self.best_score)
-                save_ckpt(self.root_path + "final.pth", self.model, self.optimizer, curr_score)
+                                self.model, self.optimizer, self.best_score, config=self._checkpoint_config())
+                save_ckpt(self.root_path + "final.pth", self.model, self.optimizer, curr_score, config=self._checkpoint_config())
         elif self.opts.curr_step == 1:
             step0_opts = self.make_step0_loader_opts(self.opts)
             self.train_loader0, self.val_loader0, self.test_loader0 = init_dataloader(step0_opts)
             self.root_path0 = f"checkpoints/{self.opts.subpath}/{self.opts.dataset}/{self.opts.task}/{self.opts.setting}/step0/"
             mkdir(self.root_path0)
+            self._write_run_config(self.root_path0)
             self.model = load_ckpt(self.ckpt)[0]
             self.model = self.model.to(self.device)
             print("make new model!")
@@ -436,6 +458,8 @@ class Trainer(object):
                 rhl_norm=self.opts.rhl_norm,
                 rhl_norm_eps=self.opts.rhl_norm_eps,
                 rhl_seed=self.opts.rhl_seed,
+                rhl_init=self.opts.rhl_init,
+                rhl_scale_mode=self.opts.rhl_scale_mode,
                 rhl_stats=self.opts.rhl_stats,
                 analytic_tail_epsilon=self.opts.analytic_tail_epsilon,
             ).to(self.device).eval()
@@ -444,7 +468,7 @@ class Trainer(object):
                 self.model.fit(X, y)
             self.model.update()
             print("start test!")
-            save_ckpt(self.root_path0 + "final.pth", self.model, None, None)
+            save_ckpt(self.root_path0 + "final.pth", self.model, None, None, config=self._checkpoint_config())
             del self.model
             self.evaluate_configured_modes(after_realign=True)
 
@@ -457,7 +481,7 @@ class Trainer(object):
                     y=self.get_pseudo_labels(X, y)
                 self.model.fit(X, y)
             self.model.update()
-            save_ckpt(self.root_path + "final.pth", self.model, None, None)
+            save_ckpt(self.root_path + "final.pth", self.model, None, None, config=self._checkpoint_config())
             self.evaluate_configured_modes()
         else:
             self.model = load_ckpt(self.ckpt)[0].to(self.device).eval()
@@ -481,7 +505,7 @@ class Trainer(object):
                 self.model.fit(X, y)
             self.model.update()
 
-            save_ckpt(self.root_path + "final.pth", self.model, None, None)
+            save_ckpt(self.root_path + "final.pth", self.model, None, None, config=self._checkpoint_config())
             self.evaluate_configured_modes()
 
     def do_evaluate(self, mode='val'):
