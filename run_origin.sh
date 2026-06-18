@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-export CUDA_VISIBLE_DEVICES=2
+export CUDA_VISIBLE_DEVICES=0
 
 # DATA_ROOT="/mnt/petrelfs/lirui/SegACIL/datasets/data/voc"
-DATA_ROOT="/TRS-SAS/linwei/SegACIL/data_root/VOC2012"
+DATA_ROOT="/root/2TStorage/lyc/SegACIL/data_root/VOC2012"
 MODEL="deeplabv3_resnet101"
 LR=0.01
 LOSS_TYPE="bce_loss"
 DATASET="voc"
 TASK="15-5"
 LR_POLICY="poly"
-SUBPATH="0615_step1_bs16"
+SUBPATH="20260606"
 METHOD="acil"
 SETTING="sequential"
 TRAIN_EPOCH=50

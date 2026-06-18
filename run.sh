@@ -12,8 +12,8 @@ LOSS_TYPE="bce_loss"
 DATASET="voc"
 TASK="15-5"
 LR_POLICY="poly"
-SUBPATH="${SUBPATH:-$(date +%Y%m%d)}"
-BASE_SUBPATH="${BASE_SUBPATH:-}"
+SUBPATH="${SUBPATH:-$(date +%Y%m%d)}"      # default: today's date, output/save directory under checkpoints/
+BASE_SUBPATH="${BASE_SUBPATH:-20260606}"   # default: 20260606, load step0 DeepLab checkpoint when START_STEP=1
 METHOD="acil"
 SETTING="sequential"
 TRAIN_EPOCH=50
@@ -21,12 +21,12 @@ PRETRAINED_BACKBONE="--pretrained_backbone"
 BUFFER=8192     # origin value: 8196
 OUTPUT_STRIDE=8
 GAMMA="${GAMMA:-1}"
-RHL_NORM="${RHL_NORM:-none}"
-RHL_NORM_EPS="${RHL_NORM_EPS:-1e-6}"
-RHL_STATS="${RHL_STATS:-0}"
+RHL_NORM="${RHL_NORM:-none}"               # default: none, RHL normalization disabled
+RHL_NORM_EPS="${RHL_NORM_EPS:-1e-6}"       # default: 1e-6, only used when RHL_NORM is enabled
+RHL_STATS="${RHL_STATS:-0}"                # default: 0, set to 1 to print RHL feature statistics
 
 
-DEFAULT_BATCH_SIZE=32   # Batch sizes for different steps
+DEFAULT_BATCH_SIZE=32   # Batch size for incremental steps, including step 1
 SPECIAL_BATCH_SIZE=32   # Batch size for step=0
 
 
