@@ -11,21 +11,21 @@ LOSS_TYPE="bce_loss"
 DATASET="voc"
 TASK="15-5"
 LR_POLICY="poly"
-SUBPATH="20260606"
+SUBPATH="20260621_baseline_bs64_32"
 METHOD="acil"
 SETTING="sequential"
 TRAIN_EPOCH=50
 PRETRAINED_BACKBONE="--pretrained_backbone"
-BUFFER=8192     # origin value: 8196
+BUFFER=8196     # origin value: 8196
 OUTPUT_STRIDE=8
 
 
-DEFAULT_BATCH_SIZE=32   # Batch sizes for different steps
-SPECIAL_BATCH_SIZE=16   # Batch size for step=0
+DEFAULT_BATCH_SIZE=64   # Batch sizes for different steps
+SPECIAL_BATCH_SIZE=32   # Batch size for step=0
 
 
 # Loop through steps
-START_STEP=1
+START_STEP=0
 END_STEP=1
 STEP_INCREMENT=1
 
