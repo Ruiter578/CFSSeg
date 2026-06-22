@@ -16,12 +16,24 @@ from utils import *
 from datasets import *
 
 class AIR(nn.Module):
-    def __init__(self, backbone_output, backbone, buffer_size, gamma, device=None, dtype=torch.double, linear=RecursiveLinear, learned_classes=None):
+    def __init__(
+        self,
+        backbone_output,
+        backbone,
+        buffer_size,
+        gamma,
+        feature_source="decoder",
+        device=None,
+        dtype=torch.double,
+        linear=RecursiveLinear,
+        learned_classes=None,
+    ):
         super(AIR, self).__init__()
         factory_kwargs = {"device": device, "dtype": dtype}
         self.backbone = backbone
         self.backbone_output = backbone_output
         self.buffer_size = buffer_size
+        self.feature_source = feature_source
         self.buffer = RandomBuffer(backbone_output, buffer_size, **factory_kwargs)
         self.analytic_linear = linear(buffer_size, gamma, **factory_kwargs)
         self.H = 0
@@ -32,7 +44,8 @@ class AIR(nn.Module):
     
     @torch.no_grad()
     def feature_expansion(self, X: torch.Tensor):
-        X, _ = self.backbone(X)
+        feature_source = getattr(self, "feature_source", "decoder")
+        X = self.backbone.forward_air_features(X, feature_source)
         self.B, self.channle, self.H, self.W = X.shape
         # 16 256 33 33
         X = X.view(self.B,self.channle,-1).permute(0,2,1) # B, H*W, c
@@ -259,8 +272,6 @@ class Trainer(object):
             self.model = load_ckpt(self.ckpt)[0]
             self.model = self.model.to(self.device)
             print("make new model!")
-            # Extract backbone (input_norm and encoder) from previous model
-            self.model.classifier.head = nn.Identity()
             backbone = self.model
             # Overwrite self.model with ACIL model
             self.model = AIR(
@@ -268,10 +279,12 @@ class Trainer(object):
                 backbone = backbone,
                 buffer_size=self.opts.buffer,
                 gamma=self.opts.gamma,
+                feature_source=self.opts.air_feature_source,
                 device=self.device,
                 dtype=torch.double,
                 linear=RecursiveLinear,
             ).to(self.device).eval()
+            print(f"AIR feature source: {self.opts.air_feature_source}")
             for seq, (X, y, _) in enumerate(self.train_loader0):
                 X, y = X.to(self.device), y.to(self.device)
                 self.model.fit(X, y)

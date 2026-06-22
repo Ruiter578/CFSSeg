@@ -44,14 +44,41 @@ class DeepLabHeadV3Plus(nn.Module):
         
         self._init_weight()
 
-    def forward(self, feature):
+    def extract_features(self, feature):
         back_out = feature['out']
         low_level_feature = self.project(feature['low_level'])
-        output_feature = self.aspp(back_out)
-        output_feature = F.interpolate(output_feature, size=low_level_feature.shape[2:], mode='bilinear', align_corners=False)
+        aspp_feature = self.aspp(back_out)
+        aspp_up_feature = F.interpolate(
+            aspp_feature,
+            size=low_level_feature.shape[2:],
+            mode='bilinear',
+            align_corners=False,
+        )
         
-        decoder_feature = torch.cat([low_level_feature, output_feature], dim=1)
+        decoder_feature = torch.cat([low_level_feature, aspp_up_feature], dim=1)
         decoder_feature = self.decoder(decoder_feature)
+
+        return {
+            "decoder": decoder_feature,
+            "aspp": aspp_feature,
+            "aspp_up": aspp_up_feature,
+            "back_out": back_out,
+            "low_level": low_level_feature,
+        }
+
+    def select_air_feature(self, features, source):
+        if source == "decoder_stride8":
+            return F.adaptive_avg_pool2d(
+                features["decoder"],
+                features["aspp"].shape[-2:],
+            )
+        if source in {"decoder", "aspp", "aspp_up"}:
+            return features[source]
+        raise ValueError(f"Unknown AIR feature source: {source}")
+
+    def forward(self, feature):
+        features = self.extract_features(feature)
+        decoder_feature = features["decoder"]
 
         B, C, H, W = decoder_feature.shape
         flat_feature = decoder_feature.view(B, C, -1).permute(0, 2, 1)
@@ -61,8 +88,9 @@ class DeepLabHeadV3Plus(nn.Module):
         return heads, {
             "feature": flat_output,
             "decoder_feature": decoder_feature,
-            "back_out": back_out,
-            "low_level": low_level_feature,
+            "back_out": features["back_out"],
+            "low_level": features["low_level"],
+            "aspp_feature": features["aspp"],
         }
     
     def _init_weight(self):
@@ -105,25 +133,42 @@ class DeepLabHead(nn.Module):
         
         self._init_weight()
 
-    def forward(self, feature):
+    def extract_features(self, feature):
         back_out = feature['out']
-        feature = self.aspp(back_out)
+        aspp_feature = self.aspp(back_out)
         
-       # 经过预处理的卷积层
-        feature = self.head_pre(feature)  # 形状为 (B, 256, H, W)
+        decoder_feature = self.head_pre(aspp_feature)
+        return {
+            "decoder": decoder_feature,
+            "aspp": aspp_feature,
+            "back_out": back_out,
+        }
+
+    def select_air_feature(self, features, source):
+        if source in {"decoder", "decoder_stride8"}:
+            return features["decoder"]
+        if source in {"aspp", "aspp_up"}:
+            return features["aspp"]
+        raise ValueError(f"Unknown AIR feature source: {source}")
+
+    def forward(self, feature):
+        features = self.extract_features(feature)
+        decoder_feature = features["decoder"]
         
         # 对每个像素点应用 MLP
-        B, C, H, W = feature.shape
-        feature = feature.view(B, C, -1).permute(0, 2, 1)  # (B, H * W, C)
+        B, C, H, W = decoder_feature.shape
+        flat_feature = decoder_feature.view(B, C, -1).permute(0, 2, 1)
         
         # 逐像素通过 MLP (head)
-        feature = self.head(feature)  # (B, H * W, num_classes)
+        flat_output = self.head(flat_feature)
         
         # 将特征还原回原始的空间形状
-        heads = feature.permute(0, 2, 1).view(B, -1, H, W)  # (B, num_classes, H, W)
+        heads = flat_output.permute(0, 2, 1).view(B, -1, H, W)
         return heads, {
-            "feature" : feature, 
-            "back_out" : back_out
+            "feature": flat_output,
+            "back_out": features["back_out"],
+            "decoder_feature": decoder_feature,
+            "aspp_feature": features["aspp"],
             }
 
     def _init_weight(self):

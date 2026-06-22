@@ -57,6 +57,7 @@ class Config:
     buffer: int = 16384
     gamma: float = 10.0
     method: str = 'None'
+    air_feature_source: str = 'decoder'
 
     use_pseudo_label: bool = False
     pseudo_label_confidence: float = 0.7
@@ -122,6 +123,13 @@ def get_argparser() -> Config:
     parser.add_argument("--buffer", type=int, default=Config.buffer, help="buffer size")
     parser.add_argument("--gamma", type=float, default=Config.gamma, help="gamma value")
     parser.add_argument("--method", type=str, default=Config.method, help="method value")
+    parser.add_argument(
+        "--air_feature_source",
+        type=str,
+        default=Config.air_feature_source,
+        choices=["decoder", "decoder_stride8", "aspp", "aspp_up"],
+        help="dense feature source used by AIR",
+    )
 
     parser.add_argument("--use_pseudo_label", action='store_true', default=Config.use_pseudo_label, help="is use pseudo label")
     parser.add_argument("--pseudo_label_confidence", type=float, default=Config.pseudo_label_confidence, help="use the label confidence")

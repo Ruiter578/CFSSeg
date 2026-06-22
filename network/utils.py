@@ -12,16 +12,28 @@ class _SimpleSegmentationModel(nn.Module):
         self.bn_freeze = bn_freeze
         
     def forward(self, x):
-        input_shape = x.shape[-2:]
         features = self.backbone(x)
         x, feat = self.classifier(features)
         return x, feat
+
+    def forward_air_features(self, x, source="decoder"):
+        has_feature_api = hasattr(self.classifier, "extract_features") and hasattr(
+            self.classifier, "select_air_feature"
+        )
+        if not has_feature_api:
+            classifier_name = type(self.classifier).__name__
+            raise TypeError(
+                f"Classifier {classifier_name} does not expose the AIR feature interface"
+            )
+        features = self.classifier.extract_features(self.backbone(x))
+        return self.classifier.select_air_feature(features, source)
     
     def train(self, mode=True):
         super(_SimpleSegmentationModel, self).train(mode=mode)
         
         if self.bn_freeze:
             self.freeze_bn()
+        return self
             
     def freeze_bn(self):
         for m in self.modules():

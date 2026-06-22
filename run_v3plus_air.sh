@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname "$0")"
+
+export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
+export PYTHONUNBUFFERED="${PYTHONUNBUFFERED:-1}"
+
+PYTHON="${PYTHON:-python}"
+DATA_ROOT="${DATA_ROOT:-/root/2TStorage/lyc/SegACIL/data_root/VOC2012}"
+MODEL="${MODEL:-deeplabv3plus_resnet101}"
+TASK="${TASK:-15-5}"
+SETTING="${SETTING:-sequential}"
+SUBPATH="${SUBPATH:?Set SUBPATH to a unique experiment name}"
+BASE_SUBPATH="${BASE_SUBPATH:-20260614_v3plus_voc15-5_seq_bs32-16}"
+BATCH_SIZE="${BATCH_SIZE:-16}"
+TRAIN_EPOCH="${TRAIN_EPOCH:-50}"
+GAMMA="${GAMMA:-1}"
+BUFFER="${BUFFER:-8196}"
+OUTPUT_STRIDE="${OUTPUT_STRIDE:-8}"
+AIR_FEATURE_SOURCE="${AIR_FEATURE_SOURCE:-decoder}"
+
+LOG_DIR="${LOG_DIR:-logs/deeplabv3plus_air}"
+LOG_FILE="${LOG_DIR}/${SUBPATH}.log"
+mkdir -p "$LOG_DIR"
+
+echo "Running DeepLabV3+ AIR feature experiment"
+echo "  feature source: ${AIR_FEATURE_SOURCE}"
+echo "  step0 checkpoint: ${BASE_SUBPATH}"
+echo "  output subpath: ${SUBPATH}"
+echo "  batch size: ${BATCH_SIZE}"
+echo "  log: ${LOG_FILE}"
+
+"$PYTHON" train.py \
+    --data_root "$DATA_ROOT" \
+    --model "$MODEL" \
+    --lr 0.01 \
+    --batch_size "$BATCH_SIZE" \
+    --loss_type bce_loss \
+    --dataset voc \
+    --task "$TASK" \
+    --lr_policy poly \
+    --curr_step 1 \
+    --subpath "$SUBPATH" \
+    --base_subpath "$BASE_SUBPATH" \
+    --method acil \
+    --setting "$SETTING" \
+    --pretrained_backbone \
+    --crop_val \
+    --train_epoch "$TRAIN_EPOCH" \
+    --gamma "$GAMMA" \
+    --buffer "$BUFFER" \
+    --output_stride "$OUTPUT_STRIDE" \
+    --air_feature_source "$AIR_FEATURE_SOURCE" \
+    2>&1 | tee "$LOG_FILE"
