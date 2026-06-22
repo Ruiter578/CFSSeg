@@ -37,12 +37,12 @@ pseudo_labels = torch.where(
 
 固定阈值比如 `0.7` 有明显局限：
 
-|情况|固定阈值太高|固定阈值太低|
-|---|---|---|
-|旧类模型不自信|几乎没有 pseudo-label，旧类仍被当 background|可能还能救回一些旧类|
-|旧类模型过度自信|影响不大|大量错误 pseudo-label 污染闭式解|
-|类别难度不同|难类召回很低|易类噪声增加|
-|step 越往后|置信度分布可能漂移|同一个阈值不再合适|
+| 情况             | 固定阈值太高                                 | 固定阈值太低                     |
+| ---------------- | -------------------------------------------- | -------------------------------- |
+| 旧类模型不自信   | 几乎没有 pseudo-label，旧类仍被当 background | 可能还能救回一些旧类             |
+| 旧类模型过度自信 | 影响不大                                     | 大量错误 pseudo-label 污染闭式解 |
+| 类别难度不同     | 难类召回很低                                 | 易类噪声增加                     |
+| step 越往后      | 置信度分布可能漂移                           | 同一个阈值不再合适               |
 
 对 CFSSeg 尤其敏感，因为增量阶段不是多轮 SGD 慢慢纠错，而是闭式解一次性吸收标签。如果 pseudo-label 噪声很大，错误会直接进入 (E^\top Y)。
 
@@ -52,61 +52,53 @@ pseudo_labels = torch.where(
 
 把固定阈值：
 
-$$ 
-s_i \ge \tau  
+$$
+s_i \ge \tau
 $$
 
 改成动态阈值：
 
-$$  
-s_i \ge \tau_{t,c}  
+$$
+s_i \ge \tau_{t,c}
 $$
 
 其中：
 
-- (s_i)：旧模型对第 (i) 个像素/点的置信度；
-    
-- (t)：当前增量 step；
-    
-- (c)：旧模型预测类别；
-    
-- (\tau_{t,c})：当前 step、当前类别的自适应阈值。
-    
+- $s_i$：旧模型对第 $i$ 个像素的置信度；
+- $t$：当前增量 step；
+- $c$：旧模型预测的旧类别；
+- $\tau_{t,c}$：当前 step、当前类别的自适应阈值。
 
 推荐第一版使用 **class-wise quantile threshold（按类别分位数阈值）**：
 
- $$
+$$
 \tau_{t,c}
-
-\operatorname{clip}  
-\left(  
-Q_q({s_i \mid \hat{y}_i=c,\ y_i=c_b}),  
-\tau_{\min},  
-\tau_{\max}  
-\right)  
+=
+\operatorname{clip}\!\left(
+Q_q\!\left(\left\{s_i\mid \hat{y}^{\mathrm{prev}}_i=c,\ y_i=c_b\right\}\right),
+\tau_{\min},
+\tau_{\max}
+\right).
 $$
 
 解释：
 
 - 只看当前被标成 background 的像素；
-    
-- 只看旧模型预测为旧类 (c) 的候选像素；
-    
-- 取这些置信度的 (q) 分位数；
-    
-- 例如 (q=0.7)，表示阈值取 70% 分位点，最终保留 top 30% 的高置信 pseudo-label；
-    
+- 只看旧模型预测为旧类 $c$ 的候选像素；
+- 取这些置信度的 $q$ 分位数；
+- 例如 $q=0.7$，表示阈值取 70% 分位点，最终保留约 top 30% 的高置信 pseudo-label；
 - 用 `clip` 限制阈值范围，避免太低或太高。
-    
 
 然后：
 
-$$  
-\tilde{y}_i =  
-\begin{cases}  
-\hat{y}^{prev}_i, & y_i=c_b,\ \hat{y}^{prev}_i=c,\ s_i \ge \tau_{t,c} \  
-y_i, & \text{otherwise}  
-\end{cases}  
+$$
+\tilde{y}_i =
+\begin{cases}
+\hat{y}^{\mathrm{prev}}_i,
+& \text{if } y_i=c_b,\ \hat{y}^{\mathrm{prev}}_i=c,\ s_i\ge\tau_{t,c}, \\
+y_i,
+& \text{otherwise}.
+\end{cases}
 $$
 
 这比固定 `0.7` 更合理，因为不同类别有不同置信度分布。
