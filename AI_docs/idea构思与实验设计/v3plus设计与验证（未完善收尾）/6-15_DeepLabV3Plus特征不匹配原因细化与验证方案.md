@@ -1013,3 +1013,78 @@ step1 旧类不下降；
 step1 新类 16-20 回到或超过 DeepLabV3 baseline；
 最终说明 DeepLabV3+ 可以作为公平增强 backbone，但必须调整 AIR 使用的特征接口。
 ```
+
+## 11. 2026-06-22 阶段 1 实验结果
+
+所有实验复用同一 step0 checkpoint：
+
+```text
+20260614_v3plus_voc15-5_seq_bs32-16
+```
+
+固定参数：
+
+```text
+batch_size=16
+buffer=8196
+gamma=1
+random_seed=1
+```
+
+结果：
+
+| AIR feature source | Mean IoU | 0-15 mIoU | 16-20 mIoU | pottedplant | tvmonitor | train |
+|---|---:|---:|---:|---:|---:|---:|
+| `decoder` | 0.6897 | 0.7815 | 0.3959 | 0.1742 | 0.2491 | 0.7079 |
+| `decoder_stride8` | 0.6860 | 0.7750 | 0.4011 | 0.1896 | 0.2565 | 0.7101 |
+| `aspp` | 0.6995 | 0.7771 | 0.4510 | 0.1962 | 0.3528 | 0.7506 |
+| `aspp_up` | **0.7036** | **0.7793** | **0.4613** | **0.2131** | **0.3757** | **0.7534** |
+
+### 11.1 接口等价性验证通过
+
+新显式接口的默认 `decoder` 得到：
+
+```text
+Mean IoU=0.6897
+0-15=0.7815
+16-20=0.3959
+```
+
+它与改造前实验完全一致，证明阶段 0 没有改变默认数学路径，差异可以归因于 feature source。
+
+### 11.2 主因已经确认
+
+从 `decoder` 切换到 `aspp`，新类提升约 5.51 个点；使用 `aspp_up` 后提升约 6.54 个点。旧类仍保持在 0.7793，最终 Mean IoU 比原 DeepLabV3 baseline 约高 0.8-0.9 个点。
+
+因此原因一得到强证据支持：
+
+> DeepLabV3+ decoder 融合 low-level texture/boundary 后的特征适合端到端 segmentation head，但不适合当前冻结特征 + RandomBuffer + RecursiveLinear 的 AIR 路径。ASPP 高层语义特征才是正确接口。
+
+### 11.3 对原因二的修正
+
+`decoder_stride8` 仅从 0.3959 提升到 0.4011，说明单纯减少空间点数不能解决问题。更关键的是，`aspp_up` 保持 stride-4 空间尺寸却取得最佳结果，证明：
+
+```text
+高分辨率本身不是精度下降主因；
+low-level decoder 语义污染才是主因；
+高层 ASPP 语义在更细标签对齐尺度上反而更有利。
+```
+
+原因二从“高分辨率必然放大背景从而伤害精度”修正为更窄的待验证假设：在最佳 `aspp_up` 上，类别 cap 是否还能改善残余较低的 `pottedplant`，并同时降低 stride-4 解析计算成本。
+
+### 11.4 运行成本证据
+
+| source | 大致总耗时 |
+|---|---:|
+| `decoder` | 约 58 分钟 |
+| `decoder_stride8` | 约 22 分钟 |
+| `aspp` | 约 22 分钟 |
+| `aspp_up` | 约 55 分钟 |
+
+stride-4 source 的耗时显著更高，符合 RandomBuffer 前 dense pixel 数量约增加 4 倍的预期。即使 class-cap 不继续涨点，只要不损失精度，它也可能是必要的工程优化。
+
+### 11.5 阶段门禁决定
+
+1. 阶段 1 已成功修复精度异常，当前最佳默认候选为 `aspp_up`。
+2. 进入阶段 2，但目标收窄为：在 `aspp_up` 上测试 `class_cap=4096/8192`，同时观察精度与耗时。
+3. 暂不进入 gamma/norm 扫描。当前特征源切换已经超过目标，且已有证据表明小范围 gamma 扫描价值低。
