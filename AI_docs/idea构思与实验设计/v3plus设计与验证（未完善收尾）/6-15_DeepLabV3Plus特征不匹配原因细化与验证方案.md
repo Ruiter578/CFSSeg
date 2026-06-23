@@ -1206,10 +1206,48 @@ bash run_v3plus_air.sh
 ### 12.8 产物位置
 
 ```text
-代码提交：9631848 feat: balance AIR fit pixels before expansion
+显式特征接口：5c45590 feat: add explicit DeepLab AIR feature sources
+特征源 sweep：f38a3bb exp: add DeepLab AIR feature sweep
+结果汇总器：7031290 tools: summarize DeepLab AIR experiments
+阶段 1 结论：8d306ee docs: record AIR feature source results
+class-cap 实现：9631848 feat: balance AIR fit pixels before expansion
+最终 runner/结论：23a97a9 docs: finalize DeepLabV3+ AIR validation
+知识库交接：675cc2a docs: synchronize DeepLabV3+ experiment handoff
 cap4096: checkpoints/20260623_v3plus_air_aspp_up_cap4096
 cap8192: checkpoints/20260623_v3plus_air_aspp_up_cap8192
 单实验日志：logs/deeplabv3plus_air/20260623_v3plus_air_aspp_up_cap*.log
 控制日志：logs/deeplabv3plus_air/20260623_v3plus_air_aspp_up_caps_controller.log
 汇总工具：tools/summarize_v3plus_air_results.py
 ```
+
+## 13. 最终验收记录
+
+2026-06-23 在 `feature/deeplabv3plus-control` worktree 完成以下验收：
+
+1. `python -m py_compile` 覆盖全部本轮变更 Python 文件。
+2. `python -m unittest -v tests.test_air_feature_sources tests.test_summarize_v3plus_air_results`：12/12 通过。
+3. `bash -n` 覆盖 `run_v3plus_air.sh`、source sweep、pixel-cap sweep。
+4. 真实 step0 checkpoint 的 513x513 forward：
+
+```text
+logits:          (1, 16, 129, 129), finite
+decoder:         (1, 256, 129, 129), finite
+decoder_stride8: (1, 256, 65, 65), finite
+aspp:            (1, 256, 65, 65), finite
+aspp_up:         (1, 256, 129, 129), finite
+默认 decoder 与显式 decoder 逐元素相同
+```
+
+5. 默认 `pixel_balance=none` 与重构前 fit 路径的 `R`、`weight` 等价测试通过。
+6. 两个 class-cap step1 checkpoint 和 JSON 均存在且可由汇总器读取。
+7. 各阶段提交均经过人工审查；CodeRabbit 对 class-cap 提交和最终文档提交均返回 `findings=0`，未发现 Critical/Warning。
+8. SegACIL 实验 tmux 会话已自动退出，当前没有本项目后台训练。
+
+工作区仍保留用户原有、未纳入本轮提交的内容：
+
+```text
+M run_v3plus.sh
+?? AI_docs/.../DeepLabV3Plus对照实验分支策略与工作流.md
+```
+
+这两项没有被覆盖、暂存或提交。包含本验收记录提交后，feature 分支比远端同名分支领先 9 个提交；本轮没有自动 push、merge 或修改 main worktree。
