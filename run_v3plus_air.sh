@@ -19,6 +19,8 @@ GAMMA="${GAMMA:-1}"
 BUFFER="${BUFFER:-8196}"
 OUTPUT_STRIDE="${OUTPUT_STRIDE:-8}"
 AIR_FEATURE_SOURCE="${AIR_FEATURE_SOURCE:-decoder}"
+AIR_PIXEL_BALANCE="${AIR_PIXEL_BALANCE:-none}"
+AIR_MAX_PIXELS_PER_CLASS="${AIR_MAX_PIXELS_PER_CLASS:-0}"
 
 LOG_DIR="${LOG_DIR:-logs/deeplabv3plus_air}"
 LOG_FILE="${LOG_DIR}/${SUBPATH}.log"
@@ -26,6 +28,8 @@ mkdir -p "$LOG_DIR"
 
 echo "Running DeepLabV3+ AIR feature experiment"
 echo "  feature source: ${AIR_FEATURE_SOURCE}"
+echo "  pixel balance: ${AIR_PIXEL_BALANCE}"
+echo "  max pixels per class: ${AIR_MAX_PIXELS_PER_CLASS}"
 echo "  step0 checkpoint: ${BASE_SUBPATH}"
 echo "  output subpath: ${SUBPATH}"
 echo "  batch size: ${BATCH_SIZE}"
@@ -52,4 +56,6 @@ echo "  log: ${LOG_FILE}"
     --buffer "$BUFFER" \
     --output_stride "$OUTPUT_STRIDE" \
     --air_feature_source "$AIR_FEATURE_SOURCE" \
+    --air_pixel_balance "$AIR_PIXEL_BALANCE" \
+    --air_max_pixels_per_class "$AIR_MAX_PIXELS_PER_CLASS" \
     2>&1 | tee "$LOG_FILE"

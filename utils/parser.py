@@ -58,6 +58,8 @@ class Config:
     gamma: float = 10.0
     method: str = 'None'
     air_feature_source: str = 'decoder'
+    air_pixel_balance: str = 'none'
+    air_max_pixels_per_class: int = 0
 
     use_pseudo_label: bool = False
     pseudo_label_confidence: float = 0.7
@@ -129,6 +131,19 @@ def get_argparser() -> Config:
         default=Config.air_feature_source,
         choices=["decoder", "decoder_stride8", "aspp", "aspp_up"],
         help="dense feature source used by AIR",
+    )
+    parser.add_argument(
+        "--air_pixel_balance",
+        type=str,
+        default=Config.air_pixel_balance,
+        choices=["none", "class_cap"],
+        help="pixel sampling strategy before AIR random expansion",
+    )
+    parser.add_argument(
+        "--air_max_pixels_per_class",
+        type=int,
+        default=Config.air_max_pixels_per_class,
+        help="per-batch pixel cap for each class when class_cap is enabled",
     )
 
     parser.add_argument("--use_pseudo_label", action='store_true', default=Config.use_pseudo_label, help="is use pseudo label")

@@ -23,6 +23,8 @@ class AIR(nn.Module):
         buffer_size,
         gamma,
         feature_source="decoder",
+        pixel_balance="none",
+        max_pixels_per_class=0,
         device=None,
         dtype=torch.double,
         linear=RecursiveLinear,
@@ -34,19 +36,56 @@ class AIR(nn.Module):
         self.backbone_output = backbone_output
         self.buffer_size = buffer_size
         self.feature_source = feature_source
+        self.pixel_balance = pixel_balance
+        self.max_pixels_per_class = max_pixels_per_class
+        if self.pixel_balance not in {"none", "class_cap"}:
+            raise ValueError(f"Unknown AIR pixel balance mode: {self.pixel_balance}")
+        if self.pixel_balance == "class_cap" and self.max_pixels_per_class <= 0:
+            raise ValueError("class_cap requires max_pixels_per_class > 0")
         self.buffer = RandomBuffer(backbone_output, buffer_size, **factory_kwargs)
         self.analytic_linear = linear(buffer_size, gamma, **factory_kwargs)
         self.H = 0
         self.W = 0
         self.channle = 0
         self.B = 0
+        self._sampling_reported = False
         self.eval()
-    
+
+    @torch.no_grad()
+    def _extract_feature_map(self, X: torch.Tensor):
+        feature_source = getattr(self, "feature_source", "decoder")
+        feature_map = self.backbone.forward_air_features(X, feature_source)
+        self.B, self.channle, self.H, self.W = feature_map.shape
+        return feature_map
+
+    def _resize_labels(self, labels):
+        labels = labels.unsqueeze(1).float()
+        return F.interpolate(labels, size=(self.H, self.W), mode='nearest').long()
+
+    def _select_fit_pixels(self, feature_map, labels):
+        features = feature_map.permute(0, 2, 3, 1).reshape(-1, self.channle)
+        labels = labels.reshape(-1)
+        valid = labels != 255
+        features, labels = features[valid], labels[valid]
+
+        if labels.numel() == 0:
+            raise ValueError("AIR fit batch contains no valid pixels")
+
+        selected = []
+        for class_id in torch.unique(labels, sorted=True):
+            class_indices = torch.nonzero(labels == class_id, as_tuple=False).flatten()
+            if class_indices.numel() > self.max_pixels_per_class:
+                order = torch.randperm(class_indices.numel(), device=class_indices.device)
+                class_indices = class_indices[order[:self.max_pixels_per_class]]
+            selected.append(class_indices)
+
+        # Keep the original raster order so sampling does not add an RLS order confound.
+        selected = torch.sort(torch.cat(selected)).values
+        return features[selected], labels[selected]
+
     @torch.no_grad()
     def feature_expansion(self, X: torch.Tensor):
-        feature_source = getattr(self, "feature_source", "decoder")
-        X = self.backbone.forward_air_features(X, feature_source)
-        self.B, self.channle, self.H, self.W = X.shape
+        X = self._extract_feature_map(X)
         # 16 256 33 33
         X = X.view(self.B,self.channle,-1).permute(0,2,1) # B, H*W, c
         return self.buffer(X) # B, H*W, C -> B, H*W, buffer_size
@@ -57,10 +96,24 @@ class AIR(nn.Module):
     
     @torch.no_grad()
     def fit(self, X, y, *args, **kwargs):
-        X = self.feature_expansion(X)   # X: B, H*W, buffer_size
-        y = y.unsqueeze(1).float()  # y: B, 1, h, w
-        y = F.interpolate(y, size=(self.H, self.W), mode='nearest').long()
-        self.analytic_linear.fit(X, y)
+        if getattr(self, "pixel_balance", "none") == "none":
+            X = self.feature_expansion(X)
+            y = self._resize_labels(y)
+            self.analytic_linear.fit(X, y)
+            return
+
+        feature_map = self._extract_feature_map(X)
+        labels = self._resize_labels(y)
+        input_pixels = int((labels != 255).sum()) if not self._sampling_reported else None
+        features, labels = self._select_fit_pixels(feature_map, labels)
+        if not self._sampling_reported:
+            print(
+                f"AIR class_cap selected {labels.numel()} / {input_pixels} valid pixels "
+                f"(max {self.max_pixels_per_class} per class)"
+            )
+            self._sampling_reported = True
+        expanded = self.buffer(features.unsqueeze(0))
+        self.analytic_linear.fit(expanded, labels)
     
     @torch.no_grad()
     def update(self):
@@ -280,14 +333,22 @@ class Trainer(object):
                 buffer_size=self.opts.buffer,
                 gamma=self.opts.gamma,
                 feature_source=self.opts.air_feature_source,
+                pixel_balance=self.opts.air_pixel_balance,
+                max_pixels_per_class=self.opts.air_max_pixels_per_class,
                 device=self.device,
                 dtype=torch.double,
                 linear=RecursiveLinear,
             ).to(self.device).eval()
             print(f"AIR feature source: {self.opts.air_feature_source}")
+            print(
+                f"AIR pixel balance: {self.opts.air_pixel_balance} "
+                f"(max_pixels_per_class={self.opts.air_max_pixels_per_class})"
+            )
             for seq, (X, y, _) in enumerate(self.train_loader0):
                 X, y = X.to(self.device), y.to(self.device)
                 self.model.fit(X, y)
+                if seq % 50 == 0:
+                    print(f"AIR base fit: {seq + 1}/{len(self.train_loader0)}")
             self.model.update()
             print("start test!")
             save_ckpt(self.root_path0 + "final.pth", self.model, None, None)
@@ -297,11 +358,13 @@ class Trainer(object):
             print("start training")
             torch.cuda.empty_cache()
 
-            for _, (X, y, _) in enumerate(self.train_loader):
+            for seq, (X, y, _) in enumerate(self.train_loader):
                 X, y = X.to(self.device), y.to(self.device)
                 if (self.opts.use_pseudo_label and self.opts.curr_step > 1 and self.opts.setting!='sequential'):
                     y=self.get_pseudo_labels(X, y)
                 self.model.fit(X, y)
+                if seq % 50 == 0:
+                    print(f"AIR incremental fit: {seq + 1}/{len(self.train_loader)}")
             self.model.update()
             save_ckpt(self.root_path + "final.pth", self.model, None, None)
             self.do_evaluate(mode='test')
