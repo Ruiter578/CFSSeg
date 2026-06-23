@@ -67,7 +67,7 @@ _SimpleSegmentationModel.forward_air_features(image, source)
 ### 0.4 修订后的阶段门禁
 
 ```text
-阶段 0：显式 AIR feature API + shape/stat smoke tests；默认 decoder 与旧行为等价。
+阶段 0：显式 AIR feature API + shape/stat smoke tests；parser 兼容默认 `decoder` 与旧行为等价。
 阶段 1：只实现并运行 feature source 对照；先拿到结果。
 阶段 2：若 stride8/aspp 改善，再围绕最佳源做像素采样；若都无改善，优先检查语义可分性而不是盲加采样。
 阶段 3：仅在统计证据支持时实现 normalization / gamma / buffer 实验。
@@ -239,7 +239,7 @@ DeepLabV3+ 给 AIR 的 decoder feature 混入了更多低层细节：
 
 | 值 | 含义 | 目的 |
 |---|---|---|
-| `decoder` | 当前默认，使用 stride-4 decoder feature | 复现实验基线 |
+| `decoder` | parser 兼容默认，使用 stride-4 decoder feature | 复现实验基线 |
 | `decoder_stride8` | 使用 decoder feature，但降采样到 stride-8 | 测试是否高分辨率导致问题 |
 | `aspp` | 使用 raw ASPP output，接近 DeepLabV3 的 stride-8 语义特征 | 测试 decoder 是否不适配 AIR |
 | `aspp_up` | 使用 ASPP feature 上采样到 stride-4，不拼 low-level | 分离 low-level 影响和空间分辨率影响 |
@@ -371,10 +371,12 @@ bash run_v3plus_air.sh
 需要新增或改造脚本 `run_v3plus_air.sh`，使其支持：
 
 ```bash
-AIR_FEATURE_SOURCE="${AIR_FEATURE_SOURCE:-decoder}"
+AIR_FEATURE_SOURCE="${AIR_FEATURE_SOURCE:-aspp_up}"
 ...
 --air_feature_source "$AIR_FEATURE_SOURCE"
 ```
+
+阶段 0 为复现旧行为时应显式设置 `AIR_FEATURE_SOURCE=decoder`；完成阶段 2 后，专用脚本默认已收敛为 `aspp_up`，parser 本身仍默认 `decoder`。
 
 实验矩阵：
 
@@ -817,7 +819,7 @@ parser.add_argument(
 
 代码目标：
 
-1. 增加 `--air_feature_source`，默认 `decoder`。
+1. 增加 `--air_feature_source`，parser 默认 `decoder`。
 2. 为 DeepLabV3+ 建立 `extract_features/select_air_feature/forward_air_features` 显式接口。
 3. AIR 改为显式调用 `forward_air_features()`，不再依赖 `head=Identity` 传递运行模式。
 4. 增加 shape、默认等价性和非法 source 测试。
@@ -901,84 +903,53 @@ buffer=8196
 | pottedplant IoU | 明显高于 0.174 |
 | tvmonitor IoU | 明显高于 0.249 |
 
-## 7. 建议新脚本结构
+## 7. 已实现的脚本结构
 
-建议新增：
+| 脚本 | 用途 |
+|---|---|
+| `run_v3plus_air.sh` | 单组 step1 实验；复用 `BASE_SUBPATH`，要求显式设置唯一 `SUBPATH` |
+| `run_v3plus_air_sources.sh` | 顺序运行四种 feature source 单因素对照 |
+| `run_v3plus_air_pixel_caps.sh` | 顺序复现 `aspp_up + cap4096/cap8192` |
 
-```text
-/root/2TStorage/lyc/SegACIL_deeplabv3plus/run_v3plus_air.sh
-```
-
-脚本核心：
+最终推荐配置可直接运行：
 
 ```bash
-#!/usr/bin/env bash
-set -euo pipefail
-
-cd "$(dirname "$0")"
-
-export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
-export PYTHONUNBUFFERED="${PYTHONUNBUFFERED:-1}"
-
-DATA_ROOT="${DATA_ROOT:-/root/2TStorage/lyc/SegACIL/data_root/VOC2012}"
-MODEL="${MODEL:-deeplabv3plus_resnet101}"
-TASK="${TASK:-15-5}"
-SETTING="${SETTING:-sequential}"
-SUBPATH="${SUBPATH:-$(date +%Y%m%d)_v3plus_air}"
-BASE_SUBPATH="${BASE_SUBPATH:-20260614_v3plus_voc15-5_seq_bs32-16}"
-
-DEFAULT_BATCH_SIZE="${DEFAULT_BATCH_SIZE:-16}"
-TRAIN_EPOCH="${TRAIN_EPOCH:-50}"
-
-GAMMA="${GAMMA:-1}"
-BUFFER="${BUFFER:-8196}"
-OUTPUT_STRIDE="${OUTPUT_STRIDE:-8}"
-
-AIR_FEATURE_SOURCE="${AIR_FEATURE_SOURCE:-decoder}"
-
-python train.py \
-  --data_root "$DATA_ROOT" \
-  --model "$MODEL" \
-  --lr 0.01 \
-  --batch_size "$DEFAULT_BATCH_SIZE" \
-  --loss_type bce_loss \
-  --dataset voc \
-  --task "$TASK" \
-  --lr_policy poly \
-  --curr_step 1 \
-  --subpath "$SUBPATH" \
-  --base_subpath "$BASE_SUBPATH" \
-  --method acil \
-  --setting "$SETTING" \
-  --pretrained_backbone \
-  --crop_val \
-  --train_epoch "$TRAIN_EPOCH" \
-  --gamma "$GAMMA" \
-  --buffer "$BUFFER" \
-  --output_stride "$OUTPUT_STRIDE" \
-  --air_feature_source "$AIR_FEATURE_SOURCE"
+SUBPATH=20260623_v3plus_air_aspp_up_none_bs8 \
+BASE_SUBPATH=20260614_v3plus_voc15-5_seq_bs32-16 \
+BATCH_SIZE=8 \
+bash run_v3plus_air.sh
 ```
 
-阶段 2/3 确认需要 pixel balance 或 normalization 后，再向脚本添加对应参数。不要在阶段 0 提前暴露尚未实现、也尚未有证据需要的配置面。
+`run_v3plus_air.sh` 当前默认：
 
-## 8. 建议给下一步 Codex 的执行任务
+```text
+AIR_FEATURE_SOURCE=aspp_up
+AIR_PIXEL_BALANCE=none
+AIR_MAX_PIXELS_PER_CLASS=0
+GAMMA=1
+BUFFER=8196
+```
 
-可以直接把下面任务交给下一步 agent：
+脚本拒绝省略 `SUBPATH`，各 sweep 脚本还会在 checkpoint 目录已存在时退出，防止覆盖正式实验产物。
+
+## 8. 原执行清单与完成状态
+
+下面是本轮使用的原执行清单，保留用于追溯，不应再交给下一步 agent 重复执行：
 
 ```text
 请在 /root/2TStorage/lyc/SegACIL_deeplabv3plus 的 feature/deeplabv3plus-control 分支上按阶段实现。这里的目标是最小完整设计，不是最少代码行数：
 
 阶段 0：
-1. 增加 --air_feature_source，支持 decoder / decoder_stride8 / aspp / aspp_up，默认 decoder。
+1. 增加 --air_feature_source，支持 decoder / decoder_stride8 / aspp / aspp_up，parser 默认 decoder。
 2. 在 DeepLabHeadV3Plus 中建立 extract_features() 和 select_air_feature()；在模型层建立 forward_air_features()。不要用 head 是否为 nn.Identity 判断 AIR 模式。
 3. decoder_stride8 使用 adaptive_avg_pool2d 精确匹配 raw ASPP 尺寸。
 4. AIR 显式调用 forward_air_features()，普通 step0 forward 行为不变。
 5. 新增 run_v3plus_air.sh，支持 BASE_SUBPATH 复用 step0、只跑 step1。
-6. 添加自动测试：四个 source 的 shape、普通 logits 不变、默认 decoder 与旧 decoder feature 数值等价、非法 source 报错。
+6. 添加自动测试：四个 source 的 shape、普通 logits 不变、parser 默认 decoder 与旧 decoder feature 数值等价、非法 source 报错。
 7. 提交并代码审查。
 
 阶段 1：
-8. 先运行默认 decoder/gamma=1 复现实验，再运行 decoder_stride8、aspp、aspp_up 单因素对照；每个实验使用相同 step0 checkpoint 和独立 SUBPATH。
+8. 先运行 decoder/gamma=1 复现实验，再运行 decoder_stride8、aspp、aspp_up 单因素对照；每个实验使用相同 step0 checkpoint 和独立 SUBPATH。
 9. 汇总 0-15、16-20、pottedplant、tvmonitor、train 指标，并根据结果决定阶段 2。
 
 阶段 2（只有阶段 1 结果支持时执行）：
@@ -988,6 +959,8 @@ python train.py \
 阶段 3（只有特征统计支持时执行）：
 12. 再实现 feature norm 或有针对性的 gamma/buffer 扫描，不做无证据的参数穷举。
 ```
+
+截至 2026-06-23：阶段 0、1、2 已完成并分别提交、测试和审查；阶段 3 因门禁未触发而有依据地跳过。后续只执行第 12.7 节列出的论文级复验，不重新展开本清单。
 
 ## 9. 风险与注意事项
 
@@ -1044,7 +1017,7 @@ random_seed=1
 
 ### 11.1 接口等价性验证通过
 
-新显式接口的默认 `decoder` 得到：
+新显式接口的兼容模式 `decoder` 得到：
 
 ```text
 Mean IoU=0.6897

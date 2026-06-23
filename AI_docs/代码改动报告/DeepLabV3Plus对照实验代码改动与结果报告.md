@@ -5,6 +5,8 @@
 分支：`feature/deeplabv3plus-control`  
 基线 commit：`68ef667`
 
+> 2026-06-23 收尾：本报告记录早期接入过程；最终机制、代码接口、完整消融和结论以 `AI_docs/idea构思与实验设计/v3plus设计与验证（未完善收尾）/6-15_DeepLabV3Plus特征不匹配原因细化与验证方案.md` 为准。
+
 ---
 
 ## 1. 目标
@@ -256,48 +258,35 @@ train epoch : 50 , iterations : 52700 , val_interval : 527
 
 ## 7. 结果表
 
-完整结果待训练完成后补入。
+| 实验 | AIR feature | old 0-15 mIoU | new 16-20 mIoU | all mIoU | JSON |
+|---|---|---:|---:|---:|---|
+| V3+ 初始 control | `decoder` | 0.7815 | 0.3959 | 0.6897 | `checkpoints/20260622_v3plus_air_decoder/voc/15-5/sequential/step1/test_results_20260622_190708.json` |
+| V3+ 修复后 control | `aspp_up` | 0.7793 | 0.4613 | **0.7036** | `checkpoints/20260622_v3plus_air_aspp_up/voc/15-5/sequential/step1/test_results_20260622_204635.json` |
 
-| 实验 | Model | task | setting | step | old 0-15 mIoU | new 16-20 mIoU | all mIoU | JSON |
-|---|---|---|---|---:|---:|---:|---:|---|
-| V3+ control | `deeplabv3plus_resnet101` | 15-5 | sequential | step1 | 待完成 | 待完成 | 待完成 | 待生成 |
+`decoder` 结果复现了早期异常；`aspp_up` 在保持旧类的同时把新类提高约 6.54 点。问题来自 DeepLabV3+ low-level decoder feature 与 AIR 解析学习不匹配，不是 batch size。
 
 ---
 
-## 8. 后续处理
-
-训练完成后需要执行：
-
-```bash
-find /root/2TStorage/lyc/SegACIL_deeplabv3plus/checkpoints/20260612_v3plus_voc15-5_seq_bs8_step1bs2 -name 'test_results_*.json' -print
-```
-
-然后提取：
-
-```text
-Mean IoU
-0 to 15 mIoU
-16 to 20 mIoU
-Class IoU
-```
-
-与本地 DeepLabV3 baseline 对比：
+## 8. 最终对照
 
 | baseline | old 0-15 | new 16-20 | all |
 |---|---:|---:|---:|
 | DeepLabV3, 20260606 | 78.01 | 42.11 | 69.46 |
 | DeepLabV3, 20260607 | 77.79 | 43.21 | 69.56 |
-| DeepLabV3+, 当前实验 | 待完成 | 待完成 | 待完成 |
+| DeepLabV3+ `decoder` | 78.15 | 39.59 | 68.97 |
+| DeepLabV3+ `aspp_up` | 77.93 | **46.13** | **70.36** |
+
+DeepLabV3+ 可以作为公平 architecture control，但 step1 AIR 必须读取 `aspp_up` 高层语义特征，不能沿用端到端 decoder 输出。
 
 ---
 
 ## 9. 合并建议
 
-目前代码层面建议：
+当前代码层面建议：
 
 ```text
-可以保留为 feature branch 继续实验。
-暂不合并 main，等完整 15-5 结果完成后再决定。
+保留在 feature/deeplabv3plus-control 分支作为 architecture control。
+是否合并 main 由用户单独决定；本轮不自动合并或推送。
 ```
 
 合并前必须确认：
@@ -305,4 +294,5 @@ Class IoU
 1. DeepLabV3 默认行为不变。
 2. V3+ 完整 step0+step1 通过。
 3. `datasets/data` symlink、checkpoint、log、`.pth` 不进入 Git。
-4. 如果 batch size 因 GPU 占用而改变，论文表中必须标注。
+4. 默认 runner 使用 `aspp_up + pixel_balance=none + gamma=1 + buffer=8196`。
+5. 如果 batch size 因显存限制改变，论文表中必须标注。

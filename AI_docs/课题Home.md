@@ -1,6 +1,6 @@
 # SegACIL / CFSSeg 课题 Home
 
-> 最后更新：2026-06-09  
+> 最后更新：2026-06-23
 > 用途：本文件作为本课题给 Claude Code / Codex / 后续人工接手时的优先入口文档。做实验、改代码、写论文前，先读这里，再读对应的 `Codex_Plans/PLAN.md` 和 `AI_docs/idea构思与实验设计`。
 
 ## 0. 协作与维护规则
@@ -243,9 +243,40 @@ SPECIAL_BATCH_SIZE=32
 
 这表示脚本现在主要服务于：复用某个已有 step0 checkpoint，只跑 `15-5` 的 step1。若设置 `BASE_SUBPATH=20260607`，step1 会从 `checkpoints/20260607/voc/15-5/sequential/step0/...` 加载 step0。
 
-## 7. 后续计划精华版
+### 6.4 DeepLabV3+ architecture control 已验证
 
-当前日期是 2026-06-09。导师额外给了一周，但整体仍按 30 天左右压缩推进。
+DeepLabV3+ 工作位于独立 worktree/分支：
+
+```text
+/root/2TStorage/lyc/SegACIL_deeplabv3plus
+feature/deeplabv3plus-control
+```
+
+VOC 15-5 sequential、固定同一 step0 checkpoint 和 RandomBuffer seed 的结果：
+
+| 配置 | old 0-15 | new 16-20 | all |
+|---|---:|---:|---:|
+| V3+ AIR `decoder` | 78.15 | 39.59 | 68.97 |
+| V3+ AIR `aspp_up` | 77.93 | **46.13** | **70.36** |
+
+已确认：初始 V3+ step1 异常来自 low-level decoder feature 与 AIR 的 RandomBuffer + RecursiveLinear 路径不匹配，不是 batch size。最终 control 配置为：
+
+```text
+air_feature_source=aspp_up
+air_pixel_balance=none
+gamma=1
+buffer=8196
+```
+
+`class_cap=4096/8192` 能降低显存并提高部分稀有类召回，但会让旧类 mIoU 下降 6.8-8.5 点，因此不进入最高精度默认。完整代码位置、实验表和后续工作流见：
+
+```text
+AI_docs/idea构思与实验设计/v3plus设计与验证（未完善收尾）/6-15_DeepLabV3Plus特征不匹配原因细化与验证方案.md
+```
+
+## 7. 2026-06-09 历史计划
+
+以下内容保留为 2026-06-09 的原计划记录；当前 DeepLabV3+ control 决策以第 6.4 节和其链接的最终报告为准。
 
 ### 第一优先级：RHL 归一化
 
@@ -298,4 +329,3 @@ shared step0 DeepLabV3-ResNet101
 3. `AI_docs/idea构思与实验设计/方案一：RHL归一化与是否改backbone、loss、LR.md`。
 4. `AI_docs/idea构思与实验设计/Backbone与分割头是否替换评估.md`。
 5. `trainer/trainer.py`、`network/Buffer.py`、`network/AnalyticLinear.py`、`run.sh`。
-
