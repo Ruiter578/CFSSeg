@@ -1,15 +1,24 @@
 import json
+import subprocess
 import tempfile
 import unittest
 from dataclasses import replace
 from pathlib import Path
+from unittest.mock import patch
 
 from trainer.trainer import Trainer
 from utils.parser import Config
-from utils.run_manifest import write_run_manifest
+from utils.run_manifest import current_git_commit, write_run_manifest
 
 
 class RunManifestTests(unittest.TestCase):
+    def test_git_commit_falls_back_when_repository_metadata_is_unavailable(self):
+        with patch(
+            "utils.run_manifest.subprocess.run",
+            side_effect=subprocess.CalledProcessError(128, ["git"]),
+        ):
+            self.assertEqual(current_git_commit(), "unknown")
+
     def test_step0_loader_options_do_not_mutate_live_step(self):
         opts = Config(curr_step=1, task="15-5", setting="sequential")
 

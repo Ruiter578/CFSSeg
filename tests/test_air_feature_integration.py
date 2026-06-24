@@ -150,6 +150,34 @@ class AirFeatureIntegrationTests(unittest.TestCase):
             "low_level",
         )
 
+    def test_resumed_air_source_rejects_explicit_mismatch(self):
+        checkpoint_model = nn.Module()
+        checkpoint_model.feature_source = "aspp_up"
+
+        self.assertEqual(
+            Trainer.resolve_resumed_air_feature_source(checkpoint_model, "auto"),
+            "aspp_up",
+        )
+        self.assertEqual(
+            Trainer.resolve_resumed_air_feature_source(
+                checkpoint_model,
+                "aspp_up",
+            ),
+            "aspp_up",
+        )
+        with self.assertRaisesRegex(ValueError, "checkpoint uses 'aspp_up'"):
+            Trainer.resolve_resumed_air_feature_source(
+                checkpoint_model,
+                "decoder",
+            )
+
+    def test_legacy_air_checkpoint_defaults_to_decoder(self):
+        checkpoint_model = nn.Module()
+        self.assertEqual(
+            Trainer.resolve_resumed_air_feature_source(checkpoint_model, "auto"),
+            "decoder",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

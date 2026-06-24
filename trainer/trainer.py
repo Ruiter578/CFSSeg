@@ -108,6 +108,16 @@ class Trainer(object):
         step0_opts.curr_step = 0
         return step0_opts
 
+    @staticmethod
+    def resolve_resumed_air_feature_source(model, requested_source):
+        checkpoint_source = getattr(model, "feature_source", "decoder")
+        if requested_source != "auto" and requested_source != checkpoint_source:
+            raise ValueError(
+                f"Requested AIR feature source '{requested_source}', but the "
+                f"checkpoint uses '{checkpoint_source}'"
+            )
+        return checkpoint_source
+
     def __init__(self, opts: Config) -> None:
         super(Trainer, self).__init__()
 
@@ -346,7 +356,10 @@ class Trainer(object):
         else:
             self.model = load_ckpt(self.ckpt)[0].to(self.device).eval()
             self.model_prev = load_ckpt(self.ckpt)[0].to(self.device).eval()
-            resolved_feature_source = getattr(self.model, "feature_source", None)
+            resolved_feature_source = self.resolve_resumed_air_feature_source(
+                self.model,
+                self.opts.air_feature_source,
+            )
             write_run_manifest(
                 output_dir=self.root_path,
                 opts=self.opts,

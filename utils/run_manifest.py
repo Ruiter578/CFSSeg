@@ -15,12 +15,15 @@ def file_sha256(path):
 
 def current_git_commit(repo_root=None):
     root = repo_root or Path(__file__).resolve().parents[1]
-    result = subprocess.run(
-        ["git", "-C", str(root), "rev-parse", "HEAD"],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return "unknown"
     return result.stdout.strip()
 
 
