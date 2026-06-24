@@ -12,16 +12,47 @@ class _SimpleSegmentationModel(nn.Module):
         self.bn_freeze = bn_freeze
         
     def forward(self, x):
-        input_shape = x.shape[-2:]
         features = self.backbone(x)
         x, feat = self.classifier(features)
         return x, feat
+
+    def _air_feature_interface(self):
+        required = (
+            "extract_features",
+            "select_air_feature",
+            "default_air_feature_source",
+            "supported_air_feature_sources",
+        )
+        if not all(hasattr(self.classifier, name) for name in required):
+            classifier_name = type(self.classifier).__name__
+            raise TypeError(
+                f"Classifier {classifier_name} does not expose the AIR feature interface"
+            )
+        return self.classifier
+
+    def resolve_air_feature_source(self, source="auto"):
+        classifier = self._air_feature_interface()
+        resolved = classifier.default_air_feature_source if source == "auto" else source
+        if resolved not in classifier.supported_air_feature_sources:
+            supported = ", ".join(classifier.supported_air_feature_sources)
+            raise ValueError(
+                f"Classifier {type(classifier).__name__} does not support AIR feature "
+                f"source '{resolved}' (supported: {supported})"
+            )
+        return resolved
+
+    def forward_air_features(self, x, source="auto"):
+        classifier = self._air_feature_interface()
+        resolved = self.resolve_air_feature_source(source)
+        features = classifier.extract_features(self.backbone(x))
+        return classifier.select_air_feature(features, resolved)
     
     def train(self, mode=True):
         super(_SimpleSegmentationModel, self).train(mode=mode)
         
         if self.bn_freeze:
             self.freeze_bn()
+        return self
             
     def freeze_bn(self):
         for m in self.modules():

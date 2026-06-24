@@ -24,39 +24,82 @@ class DeepLabV3(_SimpleSegmentationModel):
     pass
 
 class DeepLabHeadV3Plus(nn.Module):
+    default_air_feature_source = "aspp_up"
+    supported_air_feature_sources = (
+        "decoder",
+        "decoder_stride8",
+        "aspp",
+        "aspp_up",
+    )
+
     def __init__(self, in_channels, low_level_channels, num_classes, aspp_dilate=[12, 24, 36]):
         super(DeepLabHeadV3Plus, self).__init__()
-        self.project = nn.Sequential( 
+        self.project = nn.Sequential(
             nn.Conv2d(low_level_channels, 48, 1, bias=False),
             nn.BatchNorm2d(48),
             nn.ReLU(inplace=True),
         )
 
         self.aspp = ASPP(in_channels, aspp_dilate)
-
-        self.head = nn.ModuleList(
-            [
-                 nn.Sequential(
-                    nn.Conv2d(304, 256, 3, padding=1, bias=False),
-                    nn.BatchNorm2d(256),
-                    nn.ReLU(inplace=True),
-                    nn.Conv2d(256, c, 1)
-                ) for c in num_classes]
+        self.decoder = nn.Sequential(
+            nn.Conv2d(304, 256, 3, padding=1, bias=False),
+            nn.BatchNorm2d(256),
+            nn.ReLU(inplace=True),
+        )
+        self.head = nn.Sequential(
+            nn.Linear(256, sum(num_classes)),
         )
         
         self._init_weight()
 
+    def extract_features(self, feature):
+        back_out = feature['out']
+        low_level_feature = self.project(feature['low_level'])
+        aspp_feature = self.aspp(back_out)
+        aspp_up_feature = F.interpolate(
+            aspp_feature,
+            size=low_level_feature.shape[2:],
+            mode='bilinear',
+            align_corners=False,
+        )
+
+        decoder_feature = torch.cat([low_level_feature, aspp_up_feature], dim=1)
+        decoder_feature = self.decoder(decoder_feature)
+
+        return {
+            "decoder": decoder_feature,
+            "aspp": aspp_feature,
+            "aspp_up": aspp_up_feature,
+            "back_out": back_out,
+            "low_level": low_level_feature,
+        }
+
+    def select_air_feature(self, features, source):
+        if source == "decoder_stride8":
+            return F.adaptive_avg_pool2d(
+                features["decoder"],
+                features["aspp"].shape[-2:],
+            )
+        if source in {"decoder", "aspp", "aspp_up"}:
+            return features[source]
+        raise ValueError(f"Unknown AIR feature source: {source}")
+
     def forward(self, feature):
-        low_level_feature = self.project( feature['low_level'] )
-        output_feature = self.aspp(feature['out'])
-        output_feature = F.interpolate(output_feature, size=low_level_feature.shape[2:], mode='bilinear', align_corners=False)
-        
-        output_feature = torch.cat( [ low_level_feature, output_feature ], dim=1 )
-        
-        heads = [h(output_feature) for h in self.head]
-        heads = torch.cat(heads, dim=1)
-        
-        return heads
+        features = self.extract_features(feature)
+        decoder_feature = features["decoder"]
+
+        B, C, H, W = decoder_feature.shape
+        flat_feature = decoder_feature.view(B, C, -1).permute(0, 2, 1)
+        flat_output = self.head(flat_feature)
+        heads = flat_output.permute(0, 2, 1).view(B, -1, H, W)
+
+        return heads, {
+            "feature": flat_output,
+            "decoder_feature": decoder_feature,
+            "back_out": features["back_out"],
+            "low_level": features["low_level"],
+            "aspp_feature": features["aspp"],
+        }
     
     def _init_weight(self):
         for m in self.modules():
@@ -70,10 +113,13 @@ class DeepLabHeadV3Plus(nn.Module):
                 
     def _head_initialize(self):
         for m in self.head:
-            if isinstance(m, nn.Conv2d):
+            if isinstance(m, (nn.Conv2d, nn.Linear)):
                 nn.init.kaiming_normal_(m.weight)
 
 class DeepLabHead(nn.Module):
+    default_air_feature_source = "decoder"
+    supported_air_feature_sources = ("decoder", "aspp")
+
     def __init__(self, in_channels, num_classes, aspp_dilate=[12, 24, 36]):
         super(DeepLabHead, self).__init__()
 
@@ -98,25 +144,39 @@ class DeepLabHead(nn.Module):
         
         self._init_weight()
 
-    def forward(self, feature):
+    def extract_features(self, feature):
         back_out = feature['out']
-        feature = self.aspp(back_out)
-        
-       # 经过预处理的卷积层
-        feature = self.head_pre(feature)  # 形状为 (B, 256, H, W)
+        aspp_feature = self.aspp(back_out)
+        decoder_feature = self.head_pre(aspp_feature)
+        return {
+            "decoder": decoder_feature,
+            "aspp": aspp_feature,
+            "back_out": back_out,
+        }
+
+    def select_air_feature(self, features, source):
+        if source in self.supported_air_feature_sources:
+            return features[source]
+        raise ValueError(f"Unknown AIR feature source: {source}")
+
+    def forward(self, feature):
+        features = self.extract_features(feature)
+        decoder_feature = features["decoder"]
         
         # 对每个像素点应用 MLP
-        B, C, H, W = feature.shape
-        feature = feature.view(B, C, -1).permute(0, 2, 1)  # (B, H * W, C)
+        B, C, H, W = decoder_feature.shape
+        flat_feature = decoder_feature.view(B, C, -1).permute(0, 2, 1)
         
         # 逐像素通过 MLP (head)
-        feature = self.head(feature)  # (B, H * W, num_classes)
+        flat_output = self.head(flat_feature)
         
         # 将特征还原回原始的空间形状
-        heads = feature.permute(0, 2, 1).view(B, -1, H, W)  # (B, num_classes, H, W)
+        heads = flat_output.permute(0, 2, 1).view(B, -1, H, W)
         return heads, {
-            "feature" : feature, 
-            "back_out" : back_out
+            "feature": flat_output,
+            "back_out": features["back_out"],
+            "decoder_feature": decoder_feature,
+            "aspp_feature": features["aspp"],
             }
 
     def _init_weight(self):
@@ -134,6 +194,9 @@ class DeepLabHead(nn.Module):
 
 
 class DeepLabHeadBgA(nn.Module):
+    default_air_feature_source = "decoder"
+    supported_air_feature_sources = ("decoder", "aspp")
+
     def __init__(self, in_channels, num_classes, aspp_dilate=[12, 24, 36]):
         super(DeepLabHeadBgA, self).__init__()
         self.add_channels = 256
@@ -161,11 +224,25 @@ class DeepLabHeadBgA(nn.Module):
         
         self._init_weight()
 
-    def forward(self, feature):
+    def extract_features(self, feature):
         back_out = feature['out']
-        feature = self.aspp(feature['out'])
-        
-        fea_pre = self.head_pre(feature)
+        aspp_feature = self.aspp(back_out)
+        decoder_feature = self.head_pre(aspp_feature)
+        return {
+            "decoder": decoder_feature,
+            "aspp": aspp_feature,
+            "back_out": back_out,
+        }
+
+    def select_air_feature(self, features, source):
+        if source in self.supported_air_feature_sources:
+            return features[source]
+        raise ValueError(f"Unknown AIR feature source: {source}")
+
+    def forward(self, feature):
+        features = self.extract_features(feature)
+        feature = features["aspp"]
+        fea_pre = features["decoder"]
         heads = [self.head[0](fea_pre)]
         ear_feats = [fea_pre]
         for idx, h in enumerate(self.head[1:]):
@@ -193,7 +270,7 @@ class DeepLabHeadBgA(nn.Module):
             'feature': feature, 
             'prev_heads': prev_heads, 
             'ear_feats': ear_feats,
-            'back_out': back_out,
+            'back_out': features["back_out"],
         }
 
     def _init_weight(self):
