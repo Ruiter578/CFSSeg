@@ -44,6 +44,9 @@ class RunManifestTests(unittest.TestCase):
             buffer=8196,
             gamma=1,
             random_seed=1,
+            method="acil",
+            loss_type="bce_loss",
+            lr=0.01,
             rhl_norm="none",
             rhl_seed=-1,
             air_feature_source="auto",
@@ -68,6 +71,11 @@ class RunManifestTests(unittest.TestCase):
         self.assertEqual(manifest["requested_air_feature_source"], "auto")
         self.assertEqual(manifest["resolved_air_feature_source"], "aspp_up")
         self.assertEqual(manifest["buffer"], 8196)
+        self.assertEqual(manifest["data_root"], opts.data_root)
+        self.assertEqual(manifest["method"], "acil")
+        self.assertEqual(manifest["loss_type"], "bce_loss")
+        self.assertEqual(manifest["lr"], 0.01)
+        self.assertIn("use_pseudo_label", manifest)
         self.assertEqual(manifest["rhl_norm"], "none")
         self.assertEqual(manifest["git_commit"], "abc123")
         self.assertEqual(
