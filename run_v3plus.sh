@@ -11,20 +11,21 @@ cd "$(dirname "$0")"
 
 export PYTHONUNBUFFERED="${PYTHONUNBUFFERED:-1}"
 
-DATA_ROOT="/TRS-SAS/linwei/SegACIL/data_root/VOC2012"
+DATA_ROOT="/root/2TStorage/lyc/SegACIL/data_root/VOC2012"
 MODEL="deeplabv3plus_resnet101"
 TASK="15-5"
 SETTING="sequential"
-SUBPATH="20260613_v3plus_voc15-5_seq_bs16"
-START_STEP=0
+SUBPATH="20260624_v3plus_voc15-5_seq_bs32-16"
+BASE_SUBPATH="20260614_v3plus_voc15-5_seq_bs32-16"
+START_STEP=1
 END_STEP=1
 TRAIN_EPOCH=50
 GAMMA=1
 BUFFER=8196
 OUTPUT_STRIDE=8
 
-SPECIAL_BATCH_SIZE="${SPECIAL_BATCH_SIZE:-16}"
-DEFAULT_BATCH_SIZE="${DEFAULT_BATCH_SIZE:-8}"
+SPECIAL_BATCH_SIZE="${SPECIAL_BATCH_SIZE:-32}" # Batch size for step 0
+DEFAULT_BATCH_SIZE="${DEFAULT_BATCH_SIZE:-16}" # Batch size for steps 1 and above
 
 LOG_DIR="logs/deeplabv3plus"
 LOG_FILE="${LOG_DIR}/${SUBPATH}_step0-bs${SPECIAL_BATCH_SIZE}_step1-bs${DEFAULT_BATCH_SIZE}.log"
@@ -55,6 +56,7 @@ for ((CURR_STEP=START_STEP; CURR_STEP<=END_STEP; CURR_STEP++)); do
         --lr_policy poly \
         --curr_step "$CURR_STEP" \
         --subpath "$SUBPATH" \
+        --base_subpath "$BASE_SUBPATH" \
         --method acil \
         --setting "$SETTING" \
         --pretrained_backbone \
