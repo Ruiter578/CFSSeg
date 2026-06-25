@@ -78,7 +78,13 @@ main status after merge: ahead origin/main; exact count uses `git status`
 远端同步注意：
 
 - 之前本机已有 `git push` 失败记录，原因是当前非交互环境缺少 GitHub HTTPS/SSH 凭据。
-- 本地合并可以完成；远端 push 需要用户在终端配置 GitHub 登录后执行。
+- 本轮本地合并完成后再次执行 `git push origin main`，仍因同一认证问题失败：
+
+```text
+fatal: could not read Username for 'https://github.com': No such device or address
+```
+
+- 因此代码已在本地 `main` 完成融合，但远端 push 需要用户在终端配置 GitHub 登录后执行。
 
 建议最终远端同步命令：
 
