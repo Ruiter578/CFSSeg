@@ -76,7 +76,7 @@ class AirFeatureIntegrationTests(unittest.TestCase):
             batch, channels, height, width = decoder.shape
             flattened = decoder.view(batch, channels, -1).permute(0, 2, 1)
             expected_logits = model.classifier.head(flattened)
-            expected_logits = expected_logits.permute(0, 2, 1).view(
+            expected_logits = expected_logits.permute(0, 2, 1).reshape(
                 batch,
                 -1,
                 height,
@@ -170,6 +170,15 @@ class AirFeatureIntegrationTests(unittest.TestCase):
             trainer.model.backbone.return_layers["layer1"],
             "low_level",
         )
+
+    def test_factory_defaults_accept_integer_num_classes(self):
+        factory = DeepLabModelFactory()
+
+        v3 = factory.deeplabv3_resnet50(pretrained_backbone=False)
+        v3plus = factory.deeplabv3plus_resnet50(pretrained_backbone=False)
+
+        self.assertEqual(v3.classifier.head[0].out_features, 21)
+        self.assertEqual(v3plus.classifier.head[0].out_features, 21)
 
     def test_resumed_air_source_rejects_explicit_mismatch(self):
         checkpoint_model = nn.Module()

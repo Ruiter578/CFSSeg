@@ -23,6 +23,13 @@ class DeepLabV3(_SimpleSegmentationModel):
     """
     pass
 
+
+def _classifier_output_channels(num_classes):
+    if isinstance(num_classes, int):
+        return num_classes
+    return sum(num_classes)
+
+
 class DeepLabHeadV3Plus(nn.Module):
     default_air_feature_source = "aspp_up"
     supported_air_feature_sources = (
@@ -47,7 +54,7 @@ class DeepLabHeadV3Plus(nn.Module):
             nn.ReLU(inplace=True),
         )
         self.head = nn.Sequential(
-            nn.Linear(256, sum(num_classes)),
+            nn.Linear(256, _classifier_output_channels(num_classes)),
         )
         
         self._init_weight()
@@ -130,7 +137,7 @@ class DeepLabHead(nn.Module):
                         nn.BatchNorm2d(256),
                         nn.ReLU(inplace=True),)
         self.head=nn.Sequential(
-            nn.Linear(256, sum(num_classes)),
+            nn.Linear(256, _classifier_output_channels(num_classes)),
         )
         # self.head = nn.ModuleList(
         #     [
