@@ -65,7 +65,7 @@
 
 ```text
 main merge commit: ddb9acc merge: integrate DeepLabV3+ mainline model
-main status after merge: ahead origin/main by 7 commits
+main status after merge: ahead origin/main; exact count uses `git status`
 ```
 
 合并后已在 `/root/2TStorage/lyc/SegACIL` 的 `main` worktree 重新执行静态检查和 15 个单元测试，结果通过。
