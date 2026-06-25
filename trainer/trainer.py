@@ -1,6 +1,7 @@
 import os
 import time
 import json
+import copy
 import numpy as np
 from datetime import datetime
 
@@ -14,6 +15,7 @@ from metrics import *
 from network import *
 from utils import *
 from datasets import *
+from utils.run_manifest import write_run_manifest
 
 class AIR(nn.Module):
     def __init__(
@@ -22,6 +24,7 @@ class AIR(nn.Module):
         backbone,
         buffer_size,
         gamma,
+        feature_source="decoder",
         device=None,
         dtype=torch.double,
         linear=RecursiveLinear,
@@ -36,6 +39,7 @@ class AIR(nn.Module):
         self.backbone = backbone
         self.backbone_output = backbone_output
         self.buffer_size = buffer_size
+        self.feature_source = feature_source
         # RandomBuffer 是 CFSSeg/RHL 的固定随机特征映射：
         # - rhl_norm 只改变送入 RecursiveLinear 前的特征尺度；
         # - rhl_seed 只改变这一个随机映射的初始化，用于 RHL-SE 多成员构造；
@@ -60,7 +64,8 @@ class AIR(nn.Module):
     
     @torch.no_grad()
     def feature_expansion(self, X: torch.Tensor):
-        X, _ = self.backbone(X)
+        feature_source = getattr(self, "feature_source", "decoder")
+        X = self.backbone.forward_air_features(X, feature_source)
         self.B, self.channle, self.H, self.W = X.shape
         # 16 256 33 33
         X = X.view(self.B,self.channle,-1).permute(0,2,1) # B, H*W, c
@@ -97,6 +102,22 @@ class AIR(nn.Module):
         self.analytic_linear.update()
 
 class Trainer(object):
+    @staticmethod
+    def make_step0_loader_opts(opts):
+        step0_opts = copy.deepcopy(opts)
+        step0_opts.curr_step = 0
+        return step0_opts
+
+    @staticmethod
+    def resolve_resumed_air_feature_source(model, requested_source):
+        checkpoint_source = getattr(model, "feature_source", "decoder")
+        if requested_source != "auto" and requested_source != checkpoint_source:
+            raise ValueError(
+                f"Requested AIR feature source '{requested_source}', but the "
+                f"checkpoint uses '{checkpoint_source}'"
+            )
+        return checkpoint_source
+
     def __init__(self, opts: Config) -> None:
         super(Trainer, self).__init__()
 
@@ -129,6 +150,13 @@ class Trainer(object):
             self.optimizer = self.init_optimizer()
             self.scheduler = build_scheduler(opts, self.optimizer, self.total_itrs)
             self.criterion = build_criterion(opts)
+            write_run_manifest(
+                output_dir=self.root_path,
+                opts=self.opts,
+                requested_air_feature_source=self.opts.air_feature_source,
+                resolved_air_feature_source=None,
+                base_checkpoint_path=self.opts.ckpt,
+            )
 
         
         # previous step checkpoint
@@ -168,7 +196,7 @@ class Trainer(object):
             bn_freeze=self.opts.bn_freeze
         )
 
-        if self.opts.separable_conv and 'plus' in self.model:
+        if self.opts.separable_conv and 'plus' in self.opts.model:
             convert_to_separable_conv(self.model.classifier)
 
         set_bn_momentum(self.model.backbone, momentum=0.01)
@@ -264,16 +292,29 @@ class Trainer(object):
                                 self.model, self.optimizer, self.best_score)
                 save_ckpt(self.root_path + "final.pth", self.model, self.optimizer, curr_score)
         elif self.opts.curr_step == 1:
-            self.opts.curr_step = 0
-            self.train_loader0, self.val_loader0, self.test_loader0 = init_dataloader(self.opts)
+            step0_opts = self.make_step0_loader_opts(self.opts)
+            self.train_loader0, self.val_loader0, self.test_loader0 = init_dataloader(step0_opts)
             self.root_path0 = f"checkpoints/{self.opts.subpath}/{self.opts.dataset}/{self.opts.task}/{self.opts.setting}/step0/"
             mkdir(self.root_path0)
             self.model = load_ckpt(self.ckpt)[0]
             self.model = self.model.to(self.device)
             print("make new model!")
-            # Extract backbone (input_norm and encoder) from previous model
-            self.model.classifier.head = nn.Identity()
             backbone = self.model
+            requested_feature_source = self.opts.air_feature_source
+            resolved_feature_source = backbone.resolve_air_feature_source(
+                requested_feature_source
+            )
+            print(
+                "AIR feature source: "
+                f"requested={requested_feature_source}, resolved={resolved_feature_source}"
+            )
+            write_run_manifest(
+                output_dir=self.root_path,
+                opts=self.opts,
+                requested_air_feature_source=requested_feature_source,
+                resolved_air_feature_source=resolved_feature_source,
+                base_checkpoint_path=self.ckpt,
+            )
             # Overwrite self.model with ACIL model
             # step1 构造 AIR 时把命令行中的 RHL 控制项接进来。
             # 这里是方案一真正进入训练逻辑的位置：backbone 和全局随机种子保持不变，
@@ -283,6 +324,7 @@ class Trainer(object):
                 backbone = backbone,
                 buffer_size=self.opts.buffer,
                 gamma=self.opts.gamma,
+                feature_source=resolved_feature_source,
                 device=self.device,
                 dtype=torch.double,
                 linear=RecursiveLinear,
@@ -314,6 +356,17 @@ class Trainer(object):
         else:
             self.model = load_ckpt(self.ckpt)[0].to(self.device).eval()
             self.model_prev = load_ckpt(self.ckpt)[0].to(self.device).eval()
+            resolved_feature_source = self.resolve_resumed_air_feature_source(
+                self.model,
+                self.opts.air_feature_source,
+            )
+            write_run_manifest(
+                output_dir=self.root_path,
+                opts=self.opts,
+                requested_air_feature_source=self.opts.air_feature_source,
+                resolved_air_feature_source=resolved_feature_source,
+                base_checkpoint_path=self.ckpt,
+            )
 
             for _, (X, y, _) in enumerate(self.train_loader):
                 X, y = X.to(self.device), y.to(self.device)

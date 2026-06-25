@@ -57,6 +57,7 @@ class Config:
     buffer: int = 16384
     gamma: float = 10.0
     method: str = 'None'
+    air_feature_source: str = 'auto'
     rhl_norm: str = 'none'
     rhl_norm_eps: float = 1e-6
     # RHL-SE 独立种子。-1 表示不启用独立 RHL 种子，保持原始随机初始化路径。
@@ -127,6 +128,13 @@ def get_argparser() -> Config:
     parser.add_argument("--buffer", type=int, default=Config.buffer, help="buffer size")
     parser.add_argument("--gamma", type=float, default=Config.gamma, help="gamma value")
     parser.add_argument("--method", type=str, default=Config.method, help="method value")
+    parser.add_argument(
+        "--air_feature_source",
+        type=str,
+        default=Config.air_feature_source,
+        choices=["auto", "decoder", "decoder_stride8", "aspp", "aspp_up"],
+        help="dense feature source used by AIR; auto uses the model default"
+    )
     parser.add_argument(
         "--rhl_norm",
         type=str,
