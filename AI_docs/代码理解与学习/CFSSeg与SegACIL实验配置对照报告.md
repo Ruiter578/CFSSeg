@@ -122,7 +122,7 @@ README 示例与当前 `run.sh` 基本一致：`README.md:53-65` 写 `deeplabv3_
 当前本地已有 `15-1 sequential` 完整结果：
 
 ```text
-checkpoints/1128/voc/15-1/sequential/step5/test_results_20260509_083832.json
+checkpoints/1128_trs/voc/15-1/sequential/step5/test_results_20260509_083832.json
 Mean IoU: 0.6950792628591231
 0 to 15 mIoU: 0.7825233890631731
 16 to 20 mIoU: 0.4152580590061633

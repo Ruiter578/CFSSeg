@@ -16,7 +16,7 @@ cd /root/2TStorage/lyc/SegACIL && bash ./resume_epoch39_then_run.sh
 
 ```text
 data_root=/root/2TStorage/lyc/SegACIL/data_root/VOC2012
-ckpt=checkpoints/1128/voc/15-1/sequential/step0/final.pth
+ckpt=checkpoints/1128_trs/voc/15-1/sequential/step0/final.pth
 train_epoch=10
 curr_itrs=10520
 ```
@@ -33,7 +33,7 @@ curr_itrs=10520
   --curr_step 0 \
   --train_epoch 10 \
   --curr_itrs 10520 \
-  --ckpt checkpoints/1128/voc/15-1/sequential/step0/final.pth
+  --ckpt checkpoints/1128_trs/voc/15-1/sequential/step0/final.pth
 ```
 
 GPU 状态显示 `segacil` 进程仍在占用显存并计算：
@@ -47,7 +47,7 @@ segacil used memory: about 68.5GB
 TensorBoard 事件文件也在更新，说明训练已经进入 iteration 循环。检查时最新 loss 事件为：
 
 ```text
-event_file: checkpoints/1128/voc/15-1/sequential/step0/events.out.tfevents.1780585956.ubuntu20
+event_file: checkpoints/1128_trs/voc/15-1/sequential/step0/events.out.tfevents.1780585956.ubuntu20
 latest loss step: 191
 latest loss value: 0.13897642493247986
 ```

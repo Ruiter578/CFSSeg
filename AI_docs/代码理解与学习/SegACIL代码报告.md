@@ -12,7 +12,7 @@ SegACIL/
 ├── .gitignore
 ├── README.md
 ├── checkpoints/
-│   └── 1128/
+│   └── 1128_trs/
 │       └── voc/
 │           └── 15-1/
 │               └── sequential/
@@ -505,7 +505,7 @@ python train.py \
   --task 15-1 \
   --lr_policy poly \
   --curr_step <0..5> \
-  --subpath 1128 \
+  --subpath 1128_trs \
   --method acil \
   --setting sequential \
   --pretrained_backbone \
@@ -546,8 +546,8 @@ checkpoints/{subpath}/{dataset}/{task}/{setting}/step{curr_step}/
 当前脚本对应：
 
 ```text
-checkpoints/1128/voc/15-1/sequential/step0/
-checkpoints/1128/voc/15-1/sequential/step1/
+checkpoints/1128_trs/voc/15-1/sequential/step0/
+checkpoints/1128_trs/voc/15-1/sequential/step1/
 ...
 ```
 

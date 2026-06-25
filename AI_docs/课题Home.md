@@ -220,7 +220,7 @@ step2+:
 
 | 实验目录 | 协议 | 阶段 | old mIoU | new mIoU | all mIoU | 备注 |
 |---|---|---:|---:|---:|---:|---|
-| `checkpoints/1128/voc/15-1/sequential` | 15-1 sequential | step5 | 77.91 | 40.28 | 68.95 | 完整跑到 5 个增量 step，略低于论文 70.0 |
+| `checkpoints/1128_trs/voc/15-1/sequential` | 15-1 sequential | step5 | 77.91 | 40.28 | 68.95 | 完整跑到 5 个增量 step，略低于论文 70.0 |
 | `checkpoints/20260606/voc/15-5/sequential` | 15-5 sequential | step1 | 78.01 | 42.11 | 69.46 | 已超过结项单模型与集成目标 |
 | `checkpoints/20260607/voc/15-5/sequential` | 15-5 sequential | step1 | 77.79 | 43.21 | 69.56 | 当前最好 15-5 sequential 结果 |
 
@@ -298,4 +298,3 @@ shared step0 DeepLabV3-ResNet101
 3. `AI_docs/idea构思与实验设计/方案一：RHL归一化与是否改backbone、loss、LR.md`。
 4. `AI_docs/idea构思与实验设计/Backbone与分割头是否替换评估.md`。
 5. `trainer/trainer.py`、`network/Buffer.py`、`network/AnalyticLinear.py`、`run.sh`。
-
