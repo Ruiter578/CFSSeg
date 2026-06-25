@@ -61,6 +61,15 @@
 - 没有整批带入旧 feature 分支中的历史 runner、临时实验代码或 class-cap 负实验逻辑。
 - 主目录 `/root/2TStorage/lyc/SegACIL` 保持 `main`，V3+ worktree 保持集成分支，直到本地 merge。
 
+本轮已完成本地合并：
+
+```text
+main merge commit: ddb9acc merge: integrate DeepLabV3+ mainline model
+main status after merge: ahead origin/main by 7 commits
+```
+
+合并后已在 `/root/2TStorage/lyc/SegACIL` 的 `main` worktree 重新执行静态检查和 15 个单元测试，结果通过。
+
 远端同步注意：
 
 - 之前本机已有 `git push` 失败记录，原因是当前非交互环境缺少 GitHub HTTPS/SSH 凭据。
@@ -339,4 +348,4 @@ DeepLabV3+ 已达到可以进入主线的条件：
 5. CodeRabbit 最终 review 无 findings。
 6. golden replay 精确复现 `Mean IoU=0.7035645831`。
 
-下一步应把该分支本地合并进 `main`，在 `main` 上重跑最小测试，然后将 `main` 推送到远端。若远端认证阻塞，在用户终端完成 GitHub 登录后直接执行 `git push origin main`。
+本地 `main` 已完成合并并通过验证。剩余动作是远端同步：若当前非交互环境仍缺少 GitHub 凭据，需要用户在终端完成登录后执行 `git push origin main`。
