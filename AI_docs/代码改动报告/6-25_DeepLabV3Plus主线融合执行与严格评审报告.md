@@ -52,6 +52,11 @@
 85dc571 fix: validate AIR resume metadata and harden manifests
 5d56d8c feat: record complete experiment manifests
 63a5e10 test: lock DeepLabV3 decoder feature behavior
+b7af57a docs: report DeepLabV3+ mainline integration
+ddb9acc merge: integrate DeepLabV3+ mainline model
+ee5026d docs: finalize DeepLabV3+ merge report
+b5c3b95 docs: avoid stale merge status count
+7a0b062 fix: support integer class counts in DeepLab heads
 ```
 
 关键原则：
@@ -68,7 +73,7 @@ main merge commit: ddb9acc merge: integrate DeepLabV3+ mainline model
 main status after merge: ahead origin/main; exact count uses `git status`
 ```
 
-合并后已在 `/root/2TStorage/lyc/SegACIL` 的 `main` worktree 重新执行静态检查和 15 个单元测试，结果通过。
+合并后已在 `/root/2TStorage/lyc/SegACIL` 的 `main` worktree 重新执行静态检查和 16 个单元测试，结果通过。
 
 远端同步注意：
 
@@ -187,7 +192,7 @@ bash run.sh
 本轮最终 review 命令：
 
 ```bash
-coderabbit review --agent --base main --dir /root/2TStorage/lyc/SegACIL_deeplabv3plus
+coderabbit review --agent --base origin/main --dir /root/2TStorage/lyc/SegACIL
 ```
 
 最终结果：
@@ -203,6 +208,8 @@ findings: 0
 |---|---|
 | `run_manifest.py` 在无 git metadata 环境下可能异常 | 已改为 fallback 到 `unknown` |
 | 后续 step resume 未校验 AIR feature source | 已增加 mismatch 显式报错 |
+| V3+ factory 默认 `num_classes=21` 时 `sum(num_classes)` 会构造失败 | 已在 `7a0b062` 中统一兼容 `int` 与 list |
+| 测试中 `permute` 后继续 `view` 有非 contiguous 风险 | 已改为 `reshape` |
 
 中间 review 中关于 BgA `details["feature"]` 的建议未采纳。原因是 BgA 原有语义依赖空间 feature，强行改成 flattened logits 会破坏已有路径；本次只要求新增 AIR feature API，不改 BgA 历史返回约定。
 
@@ -238,7 +245,7 @@ findings: 0
 | `python -m py_compile ...` | 通过 |
 | `grep -n '[“”‘’]' ...` | 无非法弯引号 |
 | `git diff --check` | 通过 |
-| `python -m unittest discover -s tests -p 'test*.py' -v` | 15 tests, OK |
+| `python -m unittest discover -s tests -p 'test*.py' -v` | 16 tests, OK |
 
 新增测试覆盖：
 
@@ -251,6 +258,7 @@ findings: 0
 7. resume checkpoint source mismatch 显式报错。
 8. legacy AIR checkpoint 缺失 source 时兼容为 `decoder`。
 9. manifest 写入 model、source、checkpoint hash、RHL 和关键训练配置。
+10. V3/V3+ factory 默认 `num_classes=int` 可以正常构造 head。
 
 ### 7.2 模型 smoke
 
