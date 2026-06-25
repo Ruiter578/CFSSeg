@@ -66,6 +66,27 @@ class AirFeatureIntegrationTests(unittest.TestCase):
             v3plus.forward_air_features(self.images, "aspp_up"),
         )
 
+    def test_v3_forward_matches_legacy_decoder_math(self):
+        model = self.make_model(DeepLabHead(2048, [1, 15]))
+
+        with torch.no_grad():
+            backbone_features = model.backbone(self.images)
+            aspp = model.classifier.aspp(backbone_features["out"])
+            decoder = model.classifier.head_pre(aspp)
+            batch, channels, height, width = decoder.shape
+            flattened = decoder.view(batch, channels, -1).permute(0, 2, 1)
+            expected_logits = model.classifier.head(flattened)
+            expected_logits = expected_logits.permute(0, 2, 1).view(
+                batch,
+                -1,
+                height,
+                width,
+            )
+            actual_logits, details = model(self.images)
+
+        torch.testing.assert_close(actual_logits, expected_logits, rtol=0, atol=0)
+        torch.testing.assert_close(details["decoder_feature"], decoder, rtol=0, atol=0)
+
     def test_unsupported_source_fails_instead_of_aliasing(self):
         v3 = self.make_model(DeepLabHead(2048, [1, 15]))
 
