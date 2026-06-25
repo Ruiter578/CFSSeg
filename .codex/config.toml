@@ -1,0 +1,29 @@
+# Project-scoped Codex configuration for SegACIL.
+# Loaded only after the project is trusted by Codex.
+
+project_doc_max_bytes = 98304
+project_doc_fallback_filenames = ["CLAUDE.md", "README.md"]
+model_reasoning_effort = "high"
+
+[features]
+hooks = true
+
+[agents]
+max_threads = 5
+max_depth = 1
+job_max_runtime_seconds = 2400
+
+[mcp_servers.openaiDeveloperDocs]
+enabled = true
+required = false
+url = "https://developers.openai.com/mcp"
+startup_timeout_sec = 10
+tool_timeout_sec = 120
+
+[mcp_servers.context7]
+enabled = true
+required = false
+command = "npx"
+args = ["-y", "@upstash/context7-mcp"]
+startup_timeout_sec = 30
+tool_timeout_sec = 120

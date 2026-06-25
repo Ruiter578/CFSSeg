@@ -1,0 +1,13 @@
+# Project command policy notes for Codex execpolicy.
+#
+# No active prefix_rule is defined here yet. Current safeguards are implemented
+# through AGENTS.md and non-blocking lifecycle hooks.
+#
+# Candidate future rules:
+#
+# prefix_rule(
+#     pattern = ["git", "reset", "--hard"],
+#     decision = "prompt",
+#     justification = "Destructive git operations require explicit review",
+#     match = ["git reset --hard"],
+# )

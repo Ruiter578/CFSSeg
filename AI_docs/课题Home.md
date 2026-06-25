@@ -1,24 +1,41 @@
 # SegACIL / CFSSeg 课题 Home
 
-> 最后更新：2026-06-09  
+> 最后更新：2026-06-25
 > 用途：本文件作为本课题给 Claude Code / Codex / 后续人工接手时的优先入口文档。做实验、改代码、写论文前，先读这里，再读对应的 `Codex_Plans/PLAN.md` 和 `AI_docs/idea构思与实验设计`。
 
 ## 0. 协作与维护规则
 
-1. 本课题的主线不是“单纯换更强分割网络”，而是在 CFSSeg 的解析持续学习框架上做可解释、可复现、能写论文的轻量改进。
+1. 本课题的主线不是"单纯换更强分割网络"，而是在 CFSSeg 的解析持续学习框架上做可解释、可复现、能写论文的轻量改进。
 2. 任何代码改动都要优先保持 CFSSeg 主框架：冻结 encoder、RHL 高维映射、C-RLS 闭式更新分类头、伪标签缓解 semantic drift。
-3. 更新本文档时，请只更新已验证事实和明确决策。未跑完的判断写成“待验证”，不要写成结论。
+3. 更新本文档时，请只更新已验证事实和明确决策。未跑完的判断写成"待验证"，不要写成结论。
 4. 实验记录应至少包含：数据协议、setting、subpath、step0 来源、模型、buffer、gamma、是否启用伪标签、old/new/all mIoU、异常信息。
 5. 未经明确要求，不要自动 commit 或 push。当前仓库常有本地实验改动，先 `git status --short` 再动手。
 
+## 0.1 当前最新状态
+
+1. `main` 已完成 DeepLabV3+ 主线融合；V3+ 现在是 `MODEL` 的自然选项，不再是临时对照分支。
+2. V3+ 推荐入口是 `MODEL=deeplabv3plus_resnet101` + `AIR_FEATURE_SOURCE=auto`，其中 `auto` 会解析为 `aspp_up`。
+3. V3+ golden replay 已精确复现 `Mean IoU=0.7035645831`，当前没有必须继续做的 V3+ 验证实验或代码调整。
+4. 后续主线应从 `main` 新开 feature 分支，集中推进 RHL 五方法和自适应伪标签阈值；历史 `SegACIL_deeplabv3plus` worktree 只作为追溯现场保留。
+5. 项目级 Codex 体系已建立：`AGENTS.md`、`.codex/`、`.agents/skills/` 是后续 agent 任务的优先入口。
+
 ## 1. 课题背景
 
-导师庄教授是解析持续学习方向的重要提出者和开创者。本课题是在庄教授此前参与的 CFSSeg 论文基础上，使用其公开代码 `qwrawq/SegACIL` 做复现、改进、实验迭代，并形成一篇 AI 会议论文。
+本课题本质上服务于张教授的纵向项目结项指标，核心要求是：主数据集 PASCAL VOC 2012，训练设置 `15-5`，需要加入集成学习模块或机制，指标超过要求。
+
+张教授请庄辉平副教授指导本课题。庄教授是解析持续学习方向的重要提出者和开创者，并指导过 CFSSeg 相关工作。本课题在 CFSSeg 论文和 SegACIL 代码基础上进行改动创新，保留类增量分割和解析持续学习体系，同时围绕 RHL、伪标签阈值和轻量集成机制构建新贡献。
 
 课题的现实目标有两层：
 
 1. 完成导师结项要求中关于 PASCAL VOC 2012 `15-5` 类增量语义分割的指标。
-2. 在已有 CFSSeg 结果已经明显超过结项指标的基础上，提出一个足够干净、可解释、可复现的新模块或方法组合，使其具备投稿论文的贡献点。
+2. 在已有 CFSSeg 结果已经明显超过结项指标的基础上，提出足够干净、可解释、可复现的新模块或方法组合，使其具备投稿论文的贡献点。
+
+成果目标：
+
+- AI 领域会议论文，最低 EI；
+- 如果有效涨点明显且故事线扎实，争取 CCF-B 甚至 CCF-A；
+- 国家发明专利在论文初稿完成后、正式投稿前再准备；
+- 截止要求是 2026 年底前论文被录用。
 
 当前代码仓库主要覆盖 2D PASCAL VOC 流程。CFSSeg 论文包含 2D 图像与 3D 点云结果，但当前 SegACIL 仓库中没有完整可直接运行的 3D DGCNN/S3DIS/ScanNet 分支。因此短期论文与实验应先围绕 2D VOC 完成。
 
@@ -113,7 +130,7 @@ $$
 W^* = (X^\top X + \gamma I)^{-1}X^\top Y
 $$
 
-这就是“闭式解”：不需要反复 `loss.backward()`，而是用矩阵乘法和矩阵求逆直接得到最优线性头。
+这就是"闭式解"：不需要反复 `loss.backward()`，而是用矩阵乘法和矩阵求逆直接得到最优线性头。
 
 ### 4.3 为什么能持续学习而不存旧数据
 
@@ -160,7 +177,7 @@ CFSSeg 的伪标签策略做的是：
 3. 如果旧模型很确定它是某个旧类，就把 background 改回旧类。
 4. 如果旧模型不确定，就保持 background。
 
-它的作用不是给新类造标签，而是把背景中混入的高置信旧类“捞回来”，避免旧类被背景吞掉。
+它的作用不是给新类造标签，而是把背景中混入的高置信旧类"捞回来"，避免旧类被背景吞掉。
 
 ## 5. 代码训练逻辑
 
@@ -216,36 +233,68 @@ step2+:
 3. `代码理解与学习/`：SegACIL 代码结构、训练逻辑、step0 到后续 steps 的输入输出。
 4. `idea构思与实验设计/`：RHL 归一化、自适应伪标签、backbone 替换等初步构思。
 
-### 6.2 已有复现实验
+### 6.2 已有复现与验证实验
 
 | 实验目录 | 协议 | 阶段 | old mIoU | new mIoU | all mIoU | 备注 |
 |---|---|---:|---:|---:|---:|---|
 | `checkpoints/1128_trs/voc/15-1/sequential` | 15-1 sequential | step5 | 77.91 | 40.28 | 68.95 | 完整跑到 5 个增量 step，略低于论文 70.0 |
 | `checkpoints/20260606/voc/15-5/sequential` | 15-5 sequential | step1 | 78.01 | 42.11 | 69.46 | 已超过结项单模型与集成目标 |
-| `checkpoints/20260607/voc/15-5/sequential` | 15-5 sequential | step1 | 77.79 | 43.21 | 69.56 | 当前最好 15-5 sequential 结果 |
+| `checkpoints/20260607/voc/15-5/sequential` | 15-5 sequential | step1 | 77.79 | 43.21 | 69.56 | 历史 V3 sequential 强基线 |
+| `checkpoints/20260624_v3plus_integration_golden_replay_14fc116/voc/15-5/sequential` | 15-5 sequential | step1 | 77.93 | 46.13 | 70.36 | V3+ 主线融合 golden replay，`auto -> aspp_up` |
 
-结论：按结项指标看，当前 `15-5 sequential` 单模型 all mIoU 约 69.56%，已经高于 65.9% 单模型目标和 67.0% 集成系统目标。但为了论文发表，仍需要做方法改进、消融、统计和故事线，而不是只交复现结果。
+结论：按结项指标看，当前 `15-5 sequential` 已超过 65.9% 单模型目标和 67.0% 集成系统目标。V3+ 主线化后，最佳 all mIoU 已达到约 70.36%。但论文发表仍需要方法改进、消融、统计和故事线，而不是只交复现或架构替换结果。
 
 ### 6.3 当前脚本状态
 
-当前 `run.sh` 已被改成：
+当前 `run.sh` 是统一入口，核心变量为：
 
 ```text
-TASK="15-5"
-SETTING="sequential"
-START_STEP=1
-END_STEP=1
-SUBPATH="${SUBPATH:-$(date +%Y%m%d)}"
-BASE_SUBPATH="${BASE_SUBPATH:-}"
-DEFAULT_BATCH_SIZE=32
-SPECIAL_BATCH_SIZE=32
+MODEL="${MODEL:-deeplabv3_resnet101}"
+AIR_FEATURE_SOURCE="${AIR_FEATURE_SOURCE:-auto}"
+TASK="${TASK:-15-5}"
+SETTING="${SETTING:-sequential}"
+START_STEP="${START_STEP:-1}"
+END_STEP="${END_STEP:-1}"
+SUBPATH="${SUBPATH:-$(date +%Y%m%d)_${MODEL}}"
+BASE_SUBPATH="${BASE_SUBPATH:-20260606}"
+DEFAULT_BATCH_SIZE="${DEFAULT_BATCH_SIZE:-32}"
+SPECIAL_BATCH_SIZE="${SPECIAL_BATCH_SIZE:-32}"
+RHL_NORM="${RHL_NORM:-none}"
+RHL_SEED="${RHL_SEED:--1}"
 ```
 
-这表示脚本现在主要服务于：复用某个已有 step0 checkpoint，只跑 `15-5` 的 step1。若设置 `BASE_SUBPATH=20260607`，step1 会从 `checkpoints/20260607/voc/15-5/sequential/step0/...` 加载 step0。
+这表示脚本默认复用 V3 的 `20260606` step0 checkpoint，只跑 `15-5` step1。若使用 V3+，必须显式覆盖 `BASE_SUBPATH` 为 V3+ step0，例如 `20260614_v3plus_voc15-5_seq_bs32-16`。
+
+### 6.4 服务器与 worktree 状态
+
+| 名称 | 路径 | GPU | 说明 |
+|---|---|---|---|
+| A100 服务器 | `/root/2TStorage/lyc/SegACIL` | `CUDA_VISIBLE_DEVICES=0`，A100 80GB | 主开发、主文档、主要验证 |
+| TRS 服务器 | `/TRS-SAS/linwei/SegACIL` | `CUDA_VISIBLE_DEVICES=2`，4090 48GB | 远端复现实验 |
+
+A100 服务器历史上还有 `/root/2TStorage/lyc/SegACIL_deeplabv3plus` worktree。V3+ 已合入 `main` 后，该 worktree 不再作为开发主线，只作为追溯现场保留。后续 RHL 和自适应伪标签应从最新 `main` 新开 feature 分支。
+
+### 6.5 项目级 Codex 体系
+
+当前项目级 agent 配置入口：
+
+```text
+AGENTS.md
+.codex/
+.agents/skills/
+```
+
+使用原则：
+
+1. `AGENTS.md` 记录每次任务都要遵守的项目事实和实验规则；
+2. `.codex/config.toml` 配置 project-scoped Codex 行为、hooks、MCP 和 subagent 上限；
+3. `.codex/agents` 保留少量高价值 subagent，只在用户明确要求并行/委派时使用；
+4. `.agents/skills` 放 repo-scoped skills，用于 SegACIL 工作流、实验闸门和方法审查；
+5. `.codex/templates` 和 `.codex/prompts` 用于复用实验计划、实验报告、代码改动报告和方法审查 prompt。
 
 ## 7. 后续计划精华版
 
-当前日期是 2026-06-09。导师额外给了一周，但整体仍按 30 天左右压缩推进。
+当前版本按 2026-06-25 的状态维护。V3+ 已完成主线融合，后续压缩推进重点是 RHL 五方法、自适应伪标签阈值、必要的集成系统验证和论文故事线收敛。
 
 ### 第一优先级：RHL 归一化
 
@@ -285,16 +334,18 @@ shared step0 DeepLabV3-ResNet101
 
 ## 8. 当前关键决策
 
-1. 短期主线不换 backbone，不把贡献写成“使用更强网络”。主实验保持 DeepLabV3 + ResNet101，保证与 CFSSeg 和多数 baseline 公平比较。
-2. DeepLabV3+ 可以作为后续架构鲁棒性实验，但不是第一优先级；当前代码的 ResNet 版 V3+ 入口还没真正接通。
-3. RHL 归一化是下一步最稳的代码切口，因为它直接作用于 `E^T E` 的数值性质，且默认关闭时可完全保持 baseline。
+1. DeepLabV3+ 已完成主线融合，可以作为后续实验 base；但论文表述必须写清 `DeepLabV3+ + aspp_up AIR feature`，不能把全部收益说成"只换模型"。
+2. 当前不再继续围绕 V3+ 做额外验证；后续集中推进 RHL 五方法和自适应伪标签阈值。
+3. RHL 线优先保证变量可归因：`random_seed`、`rhl_seed`、`BUFFER`、`GAMMA`、`RHL_NORM`、`MODEL`、`AIR_FEATURE_SOURCE` 必须记录。
 4. 伪标签改进应优先在 `disjoint` / `overlap` 验证，不要只用 sequential 判断其价值。
-5. 集成系统优先做共享 encoder 的轻量解析头集成，而不是训练多个大 backbone。
+5. 集成系统优先做共享 encoder / 解析头 / RHL 子空间的轻量集成，除非有明确证据再上多 backbone 或 snapshot。
 
 ## 9. 后续代理接手时的最小阅读顺序
 
 1. 本文档。
-2. `Codex_Plans/PLAN.md`，如果存在且与当前任务相关。
-3. `AI_docs/idea构思与实验设计/方案一：RHL归一化与是否改backbone、loss、LR.md`。
-4. `AI_docs/idea构思与实验设计/Backbone与分割头是否替换评估.md`。
-5. `trainer/trainer.py`、`network/Buffer.py`、`network/AnalyticLinear.py`、`run.sh`。
+2. `AGENTS.md`。
+3. `.codex/README.md`。
+4. `Codex_Plans/5方法原理动机与基于优先级排序的完整工作流行动路线.md`；若存在更新的 `Codex_Plans/PLAN.md` 且与当前任务相关，也要一并读取。
+5. `AI_docs/代码改动报告/6-25_DeepLabV3Plus主线融合执行与严格评审报告.md`。
+6. 与当前任务相关的 `AI_docs/idea构思与实验设计/` 文档，尤其是 RHL、伪标签、自适应阈值和集成系统相关设计。
+7. `trainer/trainer.py`、`network/Buffer.py`、`network/AnalyticLinear.py`、`network/_deeplab.py`、`network/modeling.py`、`run.sh`。
