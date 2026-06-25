@@ -44,7 +44,7 @@
 
 本轮采用干净集成分支，而不是直接把历史 `feature/deeplabv3plus-control` 整体合入。
 
-已形成的 commit 序列：
+已形成的核心 commit 序列如下；报告自身的后续文字修订以 `git log --oneline` 为准：
 
 ```text
 35e8dad docs: finalize DeepLabV3+ integration plan
