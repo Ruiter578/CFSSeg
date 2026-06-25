@@ -24,6 +24,8 @@ BASE_SUBPATH="${BASE_SUBPATH:-20260606}"
 METHOD="${METHOD:-acil}"
 SETTING="${SETTING:-sequential}"
 TRAIN_EPOCH="${TRAIN_EPOCH:-50}"
+CKPT="${CKPT:-}"
+CURR_ITRS="${CURR_ITRS:-0}"
 PRETRAINED_BACKBONE="${PRETRAINED_BACKBONE:---pretrained_backbone}"
 BUFFER="${BUFFER:-8192}"
 OUTPUT_STRIDE="${OUTPUT_STRIDE:-8}"
@@ -58,6 +60,7 @@ echo "  task=${TASK}, setting=${SETTING}, steps=${START_STEP}-${END_STEP}"
 echo "  subpath=${SUBPATH}, base_subpath=${BASE_SUBPATH}"
 echo "  buffer=${BUFFER}, gamma=${GAMMA}, random_seed=${RANDOM_SEED}"
 echo "  rhl_norm=${RHL_NORM}, rhl_seed=${RHL_SEED}, rhl_stats=${RHL_STATS}"
+echo "  ckpt=${CKPT:-<none>}, curr_itrs=${CURR_ITRS}"
 
 for ((CURR_STEP=START_STEP; CURR_STEP<=END_STEP; CURR_STEP+=STEP_INCREMENT))
 do
@@ -65,6 +68,16 @@ do
         CURR_BATCH_SIZE="$SPECIAL_BATCH_SIZE"
     else
         CURR_BATCH_SIZE="$DEFAULT_BATCH_SIZE"
+    fi
+
+    CKPT_ARG=()
+    if [[ "$CURR_STEP" -eq 0 && -n "$CKPT" ]]; then
+        CKPT_ARG=(--ckpt "$CKPT")
+    fi
+
+    CURR_ITRS_ARG=()
+    if [[ "$CURR_STEP" -eq 0 ]]; then
+        CURR_ITRS_ARG=(--curr_itrs "$CURR_ITRS")
     fi
 
     echo "Running training for step ${CURR_STEP} with batch size ${CURR_BATCH_SIZE}..."
@@ -81,6 +94,8 @@ do
         --curr_step "$CURR_STEP" \
         --subpath "$SUBPATH" \
         "${BASE_SUBPATH_ARG[@]}" \
+        "${CKPT_ARG[@]}" \
+        "${CURR_ITRS_ARG[@]}" \
         --method "$METHOD" \
         --setting "$SETTING" \
         $PRETRAINED_BACKBONE \
