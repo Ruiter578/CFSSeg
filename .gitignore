@@ -53,8 +53,11 @@ _darcs
 # project files
 conda-segacil-explicit.txt
 environment-segacil.yml
-# exclude specific directories
-checkpoints/
+# Checkpoint outputs: ignore weights and TensorBoard event files, but keep
+# lightweight JSON evaluation results under sequential step directories.
+checkpoints/**
+!checkpoints/**/
+!checkpoints/**/sequential/step*/**/*.json
 data_root/
 
 logs/**
