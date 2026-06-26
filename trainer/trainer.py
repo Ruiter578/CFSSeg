@@ -15,7 +15,7 @@ from metrics import *
 from network import *
 from utils import *
 from datasets import *
-from utils.run_manifest import write_run_manifest
+from utils.run_manifest import safe_write_run_manifest
 
 class AIR(nn.Module):
     def __init__(
@@ -203,7 +203,7 @@ class Trainer(object):
                     resume_completed_itrs,
                 )
             self.criterion = build_criterion(opts)
-            write_run_manifest(
+            safe_write_run_manifest(
                 output_dir=self.root_path,
                 opts=self.opts,
                 requested_air_feature_source=self.opts.air_feature_source,
@@ -383,7 +383,7 @@ class Trainer(object):
                 "AIR feature source: "
                 f"requested={requested_feature_source}, resolved={resolved_feature_source}"
             )
-            write_run_manifest(
+            safe_write_run_manifest(
                 output_dir=self.root_path,
                 opts=self.opts,
                 requested_air_feature_source=requested_feature_source,
@@ -435,7 +435,7 @@ class Trainer(object):
                 self.model,
                 self.opts.air_feature_source,
             )
-            write_run_manifest(
+            safe_write_run_manifest(
                 output_dir=self.root_path,
                 opts=self.opts,
                 requested_air_feature_source=self.opts.air_feature_source,
