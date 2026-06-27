@@ -11,12 +11,12 @@ LOSS_TYPE="bce_loss"
 DATASET="voc"
 TASK="15-5"
 LR_POLICY="poly"
-SUBPATH="20260621_baseline_bs64_32"
+SUBPATH="20260625_baseline_bs64_32_8200"
 METHOD="acil"
 SETTING="sequential"
 TRAIN_EPOCH=50
 PRETRAINED_BACKBONE="--pretrained_backbone"
-BUFFER=8196     # origin value: 8196
+BUFFER=8200     # origin value: 8196
 OUTPUT_STRIDE=8
 
 
