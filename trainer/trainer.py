@@ -15,7 +15,12 @@ from metrics import *
 from network import *
 from utils import *
 from datasets import *
-from utils.run_manifest import safe_write_run_manifest
+from utils.pseudo_label import (
+    PseudoLabeler,
+    config_from_opts,
+    load_threshold_artifact,
+)
+from utils.run_manifest import file_sha256, safe_write_run_manifest
 
 class AIR(nn.Module):
     def __init__(
@@ -119,6 +124,35 @@ class Trainer(object):
         return checkpoint_source
 
     @staticmethod
+    def validate_pseudo_label_protocol(opts):
+        pseudo_config = config_from_opts(opts)
+        if pseudo_config.strategy == "off":
+            return pseudo_config
+        if opts.setting == "sequential":
+            raise ValueError("Pseudo-labeling is not valid for sequential setting.")
+        if opts.curr_step < 1:
+            raise ValueError("Pseudo-labeling requires an incremental step.")
+        return pseudo_config
+
+    @staticmethod
+    def old_class_ids_for_step(opts):
+        old_class_ids = []
+        for step in range(int(opts.curr_step)):
+            for class_id in get_tasks(opts.dataset, opts.task, step):
+                class_id = int(class_id)
+                if class_id != 0 and class_id not in old_class_ids:
+                    old_class_ids.append(class_id)
+        return sorted(old_class_ids)
+
+    @staticmethod
+    def teacher_class_count_for_step(opts):
+        if int(opts.curr_step) < 1:
+            raise ValueError("Teacher class count requires an incremental step.")
+        if getattr(opts, "num_classes", None):
+            return int(sum(opts.num_classes[: int(opts.curr_step) + 1]))
+        return len(Trainer.old_class_ids_for_step(opts)) + 1
+
+    @staticmethod
     def step0_scheduler_total_itrs(total_itrs, completed_itrs):
         completed_itrs = int(completed_itrs)
         if completed_itrs < 0:
@@ -149,6 +183,12 @@ class Trainer(object):
         super(Trainer, self).__init__()
 
         self.opts = opts
+        self.pseudo_label_config = self.validate_pseudo_label_protocol(self.opts)
+        self.opts.pseudo_label_strategy = self.pseudo_label_config.strategy
+        self.pseudo_labeler = None
+        self.pseudo_label_stats_records = []
+        self.pseudo_label_old_class_ids = []
+        self.pseudo_label_teacher_sha256 = None
         self.local_rank = 0
         self.curr_idx = [
             sum(len(get_tasks(opts.dataset, opts.task, step)) for step in range(opts.curr_step)), 
@@ -228,8 +268,7 @@ class Trainer(object):
 
         self.logger = Logger(self.root_path)
 
-        if opts.use_pseudo_label:
-            print("use Pseudo Labeling")
+        self.init_pseudo_labeling()
 
     def resume_step0_checkpoint(self, ckpt_path):
         curr_step = getattr(getattr(self, "opts", None), "curr_step", 0)
@@ -255,6 +294,158 @@ class Trainer(object):
 
         self.model = self.model.to(self.device)
         print(f"Step0 training resumed from {ckpt_path}")
+
+    def init_pseudo_labeling(self):
+        if self.pseudo_label_config.strategy == "off":
+            return
+
+        self.pseudo_label_old_class_ids = self.old_class_ids_for_step(self.opts)
+        if not self.pseudo_label_old_class_ids:
+            raise ValueError("Pseudo-labeling requires at least one old foreground class.")
+        self.pseudo_label_teacher_sha256 = file_sha256(self.ckpt)
+
+        if self.pseudo_label_config.strategy == "artifact_class":
+            if not self.pseudo_label_config.threshold_artifact:
+                raise ValueError("artifact_class requires --pseudo_label_threshold_artifact.")
+            self.pseudo_label_config.artifact_thresholds = load_threshold_artifact(
+                self.pseudo_label_config.threshold_artifact,
+                dataset=self.opts.dataset,
+                task=self.opts.task,
+                step=self.opts.curr_step,
+                setting=self.opts.setting,
+                old_class_ids=self.pseudo_label_old_class_ids,
+                teacher_sha256=self.pseudo_label_teacher_sha256,
+                quantile=self.pseudo_label_config.quantile,
+                min_conf=self.pseudo_label_config.min_conf,
+                max_conf=self.pseudo_label_config.max_conf,
+                min_pixels=self.pseudo_label_config.min_pixels,
+                shrinkage=self.pseudo_label_config.shrinkage,
+                loss_type=self.opts.loss_type,
+                random_seed=self.opts.random_seed,
+                max_batches=self.opts.pseudo_label_threshold_max_batches,
+            )
+
+        expected_classes = self.teacher_class_count_for_step(self.opts)
+        self.pseudo_labeler = PseudoLabeler(
+            self.pseudo_label_config,
+            old_class_ids=self.pseudo_label_old_class_ids,
+            loss_type=self.opts.loss_type,
+            expected_classes=expected_classes,
+        )
+        print(
+            "use Pseudo Labeling: "
+            f"strategy={self.pseudo_label_config.strategy}, "
+            f"old_class_ids={self.pseudo_label_old_class_ids}, "
+            f"teacher_classes={expected_classes}"
+        )
+
+    def pseudo_labeling_enabled(self):
+        return self.pseudo_labeler is not None and self.pseudo_labeler.enabled
+
+    def apply_pseudo_labels_if_enabled(self, images, labels):
+        images = images.to(self.device, dtype=torch.float32, non_blocking=True)
+        labels = labels.to(self.device, dtype=torch.long, non_blocking=True)
+        if not self.pseudo_labeling_enabled():
+            return labels
+        if not hasattr(self, "model_prev"):
+            raise RuntimeError("Pseudo-labeling requires self.model_prev teacher model.")
+        with torch.no_grad():
+            teacher_output = self.model_prev(images)
+            result = self.pseudo_labeler.apply(teacher_output, labels)
+        self.pseudo_label_stats_records.append(result.stats)
+        return result.labels
+
+    def save_pseudo_label_stats(self):
+        if not self.pseudo_labeling_enabled():
+            return None
+
+        total_candidates = 0
+        total_accepted = 0
+        per_class_candidates = {
+            str(class_id): 0 for class_id in self.pseudo_label_old_class_ids
+        }
+        per_class_accepted = {
+            str(class_id): 0 for class_id in self.pseudo_label_old_class_ids
+        }
+        threshold_sums = {
+            str(class_id): 0.0 for class_id in self.pseudo_label_old_class_ids
+        }
+        threshold_counts = {
+            str(class_id): 0 for class_id in self.pseudo_label_old_class_ids
+        }
+        fallback_counts = {
+            str(class_id): {} for class_id in self.pseudo_label_old_class_ids
+        }
+
+        for stats in self.pseudo_label_stats_records:
+            total_candidates += stats.candidate_count
+            total_accepted += stats.accepted_count
+            for class_id, count in stats.per_class_candidates.items():
+                per_class_candidates[class_id] = per_class_candidates.get(class_id, 0) + count
+            for class_id, count in stats.per_class_accepted.items():
+                per_class_accepted[class_id] = per_class_accepted.get(class_id, 0) + count
+            for class_id, threshold in stats.thresholds.items():
+                threshold_sums[class_id] = threshold_sums.get(class_id, 0.0) + float(threshold)
+                threshold_counts[class_id] = threshold_counts.get(class_id, 0) + 1
+            for class_id, fallback in stats.fallbacks.items():
+                class_fallbacks = fallback_counts.setdefault(class_id, {})
+                class_fallbacks[fallback] = class_fallbacks.get(fallback, 0) + 1
+
+        mean_thresholds = {}
+        for class_id, count in threshold_counts.items():
+            if count > 0:
+                mean_thresholds[class_id] = threshold_sums[class_id] / count
+
+        summary = {
+            "schema_version": 1,
+            "strategy": self.pseudo_label_config.strategy,
+            "dataset": self.opts.dataset,
+            "task": self.opts.task,
+            "step": self.opts.curr_step,
+            "setting": self.opts.setting,
+            "old_class_ids": self.pseudo_label_old_class_ids,
+            "teacher_checkpoint": getattr(self, "ckpt", None),
+            "teacher_sha256": getattr(self, "pseudo_label_teacher_sha256", None),
+            "threshold_artifact": self.pseudo_label_config.threshold_artifact,
+            "threshold_max_batches": self.opts.pseudo_label_threshold_max_batches,
+            "fixed_confidence": self.pseudo_label_config.fixed_confidence,
+            "quantile": self.pseudo_label_config.quantile,
+            "min_conf": self.pseudo_label_config.min_conf,
+            "max_conf": self.pseudo_label_config.max_conf,
+            "min_pixels": self.pseudo_label_config.min_pixels,
+            "shrinkage": self.pseudo_label_config.shrinkage,
+            "margin_min": self.pseudo_label_config.margin_min,
+            "num_batches": len(self.pseudo_label_stats_records),
+            "candidate_count": total_candidates,
+            "accepted_count": total_accepted,
+            "accepted_ratio": (
+                total_accepted / total_candidates if total_candidates > 0 else 0.0
+            ),
+            "mean_thresholds": mean_thresholds,
+            "per_class_candidates": per_class_candidates,
+            "per_class_accepted": per_class_accepted,
+            "fallback_counts": fallback_counts,
+        }
+        if self.pseudo_label_config.stats:
+            summary["batch_stats"] = [
+                {
+                    "strategy": stats.strategy,
+                    "candidate_count": stats.candidate_count,
+                    "accepted_count": stats.accepted_count,
+                    "thresholds": stats.thresholds,
+                    "per_class_candidates": stats.per_class_candidates,
+                    "per_class_accepted": stats.per_class_accepted,
+                    "fallbacks": stats.fallbacks,
+                }
+                for stats in self.pseudo_label_stats_records
+            ]
+
+        stats_path = os.path.join(self.root_path, "pseudo_label_stats.json")
+        with open(stats_path, "w", encoding="utf-8") as handle:
+            json.dump(summary, handle, indent=2, sort_keys=True)
+            handle.write("\n")
+        print(f"Pseudo-label stats saved to {stats_path}")
+        return stats_path
 
     def init_models(self):
         # Set up model
@@ -409,7 +600,8 @@ class Trainer(object):
                 rhl_stats=self.opts.rhl_stats,
             ).to(self.device).eval()
             for seq, (X, y, _) in enumerate(self.train_loader0):
-                X, y = X.to(self.device), y.to(self.device)
+                X = X.to(self.device, dtype=torch.float32, non_blocking=True)
+                y = y.to(self.device, dtype=torch.long, non_blocking=True)
                 self.model.fit(X, y)
             self.model.update()
             print("start test!")
@@ -421,11 +613,12 @@ class Trainer(object):
             torch.cuda.empty_cache()
 
             for _, (X, y, _) in enumerate(self.train_loader):
-                X, y = X.to(self.device), y.to(self.device)
-                if (self.opts.use_pseudo_label and self.opts.curr_step > 1 and self.opts.setting!='sequential'):
-                    y=self.get_pseudo_labels(X, y)
+                X = X.to(self.device, dtype=torch.float32, non_blocking=True)
+                y = y.to(self.device, dtype=torch.long, non_blocking=True)
+                y = self.apply_pseudo_labels_if_enabled(X, y)
                 self.model.fit(X, y)
             self.model.update()
+            self.save_pseudo_label_stats()
             save_ckpt(self.root_path + "final.pth", self.model, None, None)
             self.do_evaluate(mode='test')
         else:
@@ -444,11 +637,12 @@ class Trainer(object):
             )
 
             for _, (X, y, _) in enumerate(self.train_loader):
-                X, y = X.to(self.device), y.to(self.device)
-                if (self.opts.use_pseudo_label and self.opts.curr_step > 1 and self.opts.setting!='sequential'):
-                        y=self.get_pseudo_labels(X, y)
+                X = X.to(self.device, dtype=torch.float32, non_blocking=True)
+                y = y.to(self.device, dtype=torch.long, non_blocking=True)
+                y = self.apply_pseudo_labels_if_enabled(X, y)
                 self.model.fit(X, y)
             self.model.update()
+            self.save_pseudo_label_stats()
 
             save_ckpt(self.root_path + "final.pth", self.model, None, None)
             self.do_evaluate(mode='test')
@@ -510,7 +704,7 @@ class Trainer(object):
         best_ckpt = self.root_path0+"final.pth"
         
         self.model = load_ckpt(best_ckpt)[0].to(self.device).eval()
-        if self.opts.use_pseudo_label:
+        if self.pseudo_labeling_enabled():
             self.model_prev = load_ckpt(self.ckpt)[0].to(self.device).eval()
         
         """Do validation and return specified samples"""
@@ -583,23 +777,4 @@ class Trainer(object):
         return score
 
     def get_pseudo_labels(self, images, labels):
-        with torch.no_grad():
-            
-            images = images.to(self.device, dtype=torch.float32, non_blocking=True)
-            labels = labels.to(self.device, dtype=torch.long, non_blocking=True)
-            
-            outputs= self.model_prev(images)
-
-            if self.opts.loss_type == 'bce_loss':
-                outputs = torch.sigmoid(outputs)
-            else:
-                outputs = torch.softmax(outputs, dim=1)
-            outputs=outputs.permute(0,3,1,2)
-            outputs = F.interpolate(outputs, labels.shape[-2:], mode='bilinear', align_corners=False)
-
-            pred_scores, pred_labels = torch.max(outputs, dim=1)
-            pseudo_labels= torch.where(
-                (labels==0) & (pred_labels>0) & (pred_scores >= self.opts.pseudo_label_confidence), 
-                pred_labels, 
-                labels)
-            return pseudo_labels
+        return self.apply_pseudo_labels_if_enabled(images, labels)

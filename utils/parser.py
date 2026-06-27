@@ -66,6 +66,16 @@ class Config:
 
     use_pseudo_label: bool = False
     pseudo_label_confidence: float = 0.7
+    pseudo_label_strategy: Optional[str] = None
+    pseudo_label_quantile: float = 0.7
+    pseudo_label_min_conf: float = 0.0
+    pseudo_label_max_conf: float = 1.0
+    pseudo_label_min_pixels: int = 1
+    pseudo_label_shrinkage: float = 0.0
+    pseudo_label_margin_min: float = 0.0
+    pseudo_label_threshold_artifact: Optional[str] = None
+    pseudo_label_threshold_max_batches: Optional[int] = None
+    pseudo_label_stats: bool = False
 
 
 def get_argparser() -> Config:
@@ -163,6 +173,22 @@ def get_argparser() -> Config:
 
     parser.add_argument("--use_pseudo_label", action='store_true', default=Config.use_pseudo_label, help="is use pseudo label")
     parser.add_argument("--pseudo_label_confidence", type=float, default=Config.pseudo_label_confidence, help="use the label confidence")
+    parser.add_argument(
+        "--pseudo_label_strategy",
+        type=str,
+        default=Config.pseudo_label_strategy,
+        choices=['off', 'fixed', 'batch_global', 'batch_class', 'artifact_class'],
+        help="pseudo-label threshold strategy; --use_pseudo_label without this uses fixed"
+    )
+    parser.add_argument("--pseudo_label_quantile", type=float, default=Config.pseudo_label_quantile)
+    parser.add_argument("--pseudo_label_min_conf", type=float, default=Config.pseudo_label_min_conf)
+    parser.add_argument("--pseudo_label_max_conf", type=float, default=Config.pseudo_label_max_conf)
+    parser.add_argument("--pseudo_label_min_pixels", type=int, default=Config.pseudo_label_min_pixels)
+    parser.add_argument("--pseudo_label_shrinkage", type=float, default=Config.pseudo_label_shrinkage)
+    parser.add_argument("--pseudo_label_margin_min", type=float, default=Config.pseudo_label_margin_min)
+    parser.add_argument("--pseudo_label_threshold_artifact", type=str, default=Config.pseudo_label_threshold_artifact)
+    parser.add_argument("--pseudo_label_threshold_max_batches", type=int, default=Config.pseudo_label_threshold_max_batches)
+    parser.add_argument("--pseudo_label_stats", action='store_true', default=Config.pseudo_label_stats)
     args = parser.parse_args()
     return Config(**vars(args))
 

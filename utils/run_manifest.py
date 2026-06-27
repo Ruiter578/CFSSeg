@@ -192,6 +192,16 @@ def write_run_manifest(
         "rhl_stats": args.get("rhl_stats"),
         "use_pseudo_label": args.get("use_pseudo_label"),
         "pseudo_label_confidence": args.get("pseudo_label_confidence"),
+        "pseudo_label_strategy": args.get("pseudo_label_strategy"),
+        "pseudo_label_quantile": args.get("pseudo_label_quantile"),
+        "pseudo_label_min_conf": args.get("pseudo_label_min_conf"),
+        "pseudo_label_max_conf": args.get("pseudo_label_max_conf"),
+        "pseudo_label_min_pixels": args.get("pseudo_label_min_pixels"),
+        "pseudo_label_shrinkage": args.get("pseudo_label_shrinkage"),
+        "pseudo_label_margin_min": args.get("pseudo_label_margin_min"),
+        "pseudo_label_threshold_artifact": args.get("pseudo_label_threshold_artifact"),
+        "pseudo_label_threshold_max_batches": args.get("pseudo_label_threshold_max_batches"),
+        "pseudo_label_stats": args.get("pseudo_label_stats"),
     }
 
     manifest_path = output_path / "run_manifest.json"

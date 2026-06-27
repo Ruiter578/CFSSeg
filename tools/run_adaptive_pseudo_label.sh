@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$REPO_ROOT"
+
+export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
+export CUDA_MPS_PIPE_DIRECTORY="${CUDA_MPS_PIPE_DIRECTORY:-${REPO_ROOT}/.mps_bypass}"
+export TMPDIR="${TMPDIR:-${REPO_ROOT}/tmp}"
+export PYTHONUNBUFFERED="${PYTHONUNBUFFERED:-1}"
+mkdir -p "$CUDA_MPS_PIPE_DIRECTORY" "$TMPDIR"
+
+PYTHON="${PYTHON:-python}"
+DATA_ROOT="${DATA_ROOT:-${REPO_ROOT}/data_root/VOC2012}"
+MODEL="${MODEL:-deeplabv3_resnet101}"
+AIR_FEATURE_SOURCE="${AIR_FEATURE_SOURCE:-auto}"
+TASK="${TASK:-15-5}"
+SETTING="${SETTING:-overlap}"
+STRATEGY="${PSEUDO_LABEL_STRATEGY:-batch_class}"
+QUANTILE="${PSEUDO_LABEL_QUANTILE:-0.7}"
+CONFIDENCE="${PSEUDO_LABEL_CONFIDENCE:-0.7}"
+MIN_CONF="${PSEUDO_LABEL_MIN_CONF:-0.0}"
+MAX_CONF="${PSEUDO_LABEL_MAX_CONF:-1.0}"
+MIN_PIXELS="${PSEUDO_LABEL_MIN_PIXELS:-1}"
+SHRINKAGE="${PSEUDO_LABEL_SHRINKAGE:-0.0}"
+MARGIN_MIN="${PSEUDO_LABEL_MARGIN_MIN:-0.0}"
+RANDOM_SEED="${RANDOM_SEED:-1}"
+BUFFER="${BUFFER:-8196}"
+GAMMA="${GAMMA:-1}"
+BATCH_SIZE="${BATCH_SIZE:-32}"
+STEP0_BATCH_SIZE="${STEP0_BATCH_SIZE:-32}"
+TRAIN_EPOCH="${TRAIN_EPOCH:-50}"
+SKIP_STEP0="${SKIP_STEP0:-0}"
+
+RUN_STAMP="$(date +%Y%m%d_%H%M%S)"
+SUBPATH="${SUBPATH:-${RUN_STAMP}_pseudo_${TASK}_${SETTING}_${STRATEGY}_q${QUANTILE}_m${MARGIN_MIN}_seed${RANDOM_SEED}_bs${BATCH_SIZE}}"
+REQUESTED_BASE_SUBPATH="${BASE_SUBPATH:-}"
+BASE_SUBPATH="${REQUESTED_BASE_SUBPATH:-$SUBPATH}"
+LOG_DIR="${LOG_DIR:-logs/pseudo_label}"
+LOG_PATH="${LOG_PATH:-${LOG_DIR}/${SUBPATH}.log}"
+SUMMARY_PATH="${SUMMARY_PATH:-${LOG_DIR}/${SUBPATH}_summary.md}"
+
+mkdir -p "$LOG_DIR"
+
+if [[ "$STRATEGY" == "off" ]]; then
+    STEP1_USE_PSEUDO=0
+else
+    STEP1_USE_PSEUDO=1
+fi
+if [[ "$SETTING" == "sequential" && "$STEP1_USE_PSEUDO" == "1" ]]; then
+    echo "adaptive pseudo-labeling is only valid for overlap/disjoint settings" >&2
+    exit 2
+fi
+if [[ "$SKIP_STEP0" == "1" && -z "$REQUESTED_BASE_SUBPATH" ]]; then
+    echo "SKIP_STEP0=1 requires explicit BASE_SUBPATH pointing to an existing step0 run" >&2
+    exit 2
+fi
+
+echo "Adaptive pseudo-label experiment:" | tee "$LOG_PATH"
+echo "  subpath=${SUBPATH}" | tee -a "$LOG_PATH"
+echo "  base_subpath=${BASE_SUBPATH}" | tee -a "$LOG_PATH"
+echo "  task=${TASK}, setting=${SETTING}, strategy=${STRATEGY}" | tee -a "$LOG_PATH"
+echo "  buffer=${BUFFER}, gamma=${GAMMA}, seed=${RANDOM_SEED}" | tee -a "$LOG_PATH"
+echo "  batch(step0/step1)=${STEP0_BATCH_SIZE}/${BATCH_SIZE}" | tee -a "$LOG_PATH"
+
+if [[ "$SKIP_STEP0" != "1" ]]; then
+    echo "[step0] training base checkpoint without pseudo-labeling" | tee -a "$LOG_PATH"
+    PYTHON="$PYTHON" \
+    DATA_ROOT="$DATA_ROOT" \
+    MODEL="$MODEL" \
+    AIR_FEATURE_SOURCE="$AIR_FEATURE_SOURCE" \
+    TASK="$TASK" \
+    SETTING="$SETTING" \
+    SUBPATH="$SUBPATH" \
+    BASE_SUBPATH="" \
+    START_STEP=0 END_STEP=0 \
+    SPECIAL_BATCH_SIZE="$STEP0_BATCH_SIZE" \
+    DEFAULT_BATCH_SIZE="$BATCH_SIZE" \
+    TRAIN_EPOCH="$TRAIN_EPOCH" \
+    BUFFER="$BUFFER" \
+    GAMMA="$GAMMA" \
+    RANDOM_SEED="$RANDOM_SEED" \
+    USE_PSEUDO_LABEL=0 \
+    PSEUDO_LABEL_STRATEGY="" \
+    bash run.sh 2>&1 | tee -a "$LOG_PATH"
+fi
+
+echo "[step1] training incremental AIR with pseudo-label strategy=${STRATEGY}" | tee -a "$LOG_PATH"
+PYTHON="$PYTHON" \
+DATA_ROOT="$DATA_ROOT" \
+MODEL="$MODEL" \
+AIR_FEATURE_SOURCE="$AIR_FEATURE_SOURCE" \
+TASK="$TASK" \
+SETTING="$SETTING" \
+SUBPATH="$SUBPATH" \
+BASE_SUBPATH="$BASE_SUBPATH" \
+START_STEP=1 END_STEP=1 \
+SPECIAL_BATCH_SIZE="$STEP0_BATCH_SIZE" \
+DEFAULT_BATCH_SIZE="$BATCH_SIZE" \
+TRAIN_EPOCH="$TRAIN_EPOCH" \
+BUFFER="$BUFFER" \
+GAMMA="$GAMMA" \
+RANDOM_SEED="$RANDOM_SEED" \
+USE_PSEUDO_LABEL="$STEP1_USE_PSEUDO" \
+PSEUDO_LABEL_STRATEGY="$STRATEGY" \
+PSEUDO_LABEL_CONFIDENCE="$CONFIDENCE" \
+PSEUDO_LABEL_QUANTILE="$QUANTILE" \
+PSEUDO_LABEL_MIN_CONF="$MIN_CONF" \
+PSEUDO_LABEL_MAX_CONF="$MAX_CONF" \
+PSEUDO_LABEL_MIN_PIXELS="$MIN_PIXELS" \
+PSEUDO_LABEL_SHRINKAGE="$SHRINKAGE" \
+PSEUDO_LABEL_MARGIN_MIN="$MARGIN_MIN" \
+PSEUDO_LABEL_STATS="${PSEUDO_LABEL_STATS:-0}" \
+PSEUDO_LABEL_THRESHOLD_ARTIFACT="${PSEUDO_LABEL_THRESHOLD_ARTIFACT:-}" \
+PSEUDO_LABEL_THRESHOLD_MAX_BATCHES="${PSEUDO_LABEL_THRESHOLD_MAX_BATCHES:-}" \
+bash run.sh 2>&1 | tee -a "$LOG_PATH"
+
+STEP1_DIR="checkpoints/${SUBPATH}/voc/${TASK}/${SETTING}/step1"
+"$PYTHON" tools/summarize_adaptive_pseudo_label.py "$STEP1_DIR" --output "$SUMMARY_PATH" 2>&1 | tee -a "$LOG_PATH"
+echo "summary=${SUMMARY_PATH}" | tee -a "$LOG_PATH"

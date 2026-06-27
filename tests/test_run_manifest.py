@@ -75,6 +75,17 @@ class RunManifestTests(unittest.TestCase):
             rhl_norm="none",
             rhl_seed=-1,
             air_feature_source="auto",
+            use_pseudo_label=True,
+            pseudo_label_strategy="batch_class",
+            pseudo_label_quantile=0.7,
+            pseudo_label_min_conf=0.5,
+            pseudo_label_max_conf=0.95,
+            pseudo_label_min_pixels=16,
+            pseudo_label_shrinkage=32,
+            pseudo_label_margin_min=0.05,
+            pseudo_label_threshold_artifact="thresholds.json",
+            pseudo_label_threshold_max_batches=12,
+            pseudo_label_stats=True,
         )
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -101,6 +112,19 @@ class RunManifestTests(unittest.TestCase):
         self.assertEqual(manifest["loss_type"], "bce_loss")
         self.assertEqual(manifest["lr"], 0.01)
         self.assertIn("use_pseudo_label", manifest)
+        self.assertEqual(manifest["pseudo_label_strategy"], "batch_class")
+        self.assertEqual(manifest["pseudo_label_quantile"], 0.7)
+        self.assertEqual(manifest["pseudo_label_min_conf"], 0.5)
+        self.assertEqual(manifest["pseudo_label_max_conf"], 0.95)
+        self.assertEqual(manifest["pseudo_label_min_pixels"], 16)
+        self.assertEqual(manifest["pseudo_label_shrinkage"], 32)
+        self.assertEqual(manifest["pseudo_label_margin_min"], 0.05)
+        self.assertEqual(
+            manifest["pseudo_label_threshold_artifact"],
+            "thresholds.json",
+        )
+        self.assertEqual(manifest["pseudo_label_threshold_max_batches"], 12)
+        self.assertTrue(manifest["pseudo_label_stats"])
         self.assertEqual(manifest["rhl_norm"], "none")
         self.assertEqual(manifest["git_commit"], "abc123")
         self.assertEqual(

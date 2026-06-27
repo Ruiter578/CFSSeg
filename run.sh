@@ -35,6 +35,18 @@ RHL_NORM="${RHL_NORM:-none}"
 RHL_NORM_EPS="${RHL_NORM_EPS:-1e-6}"
 RHL_SEED="${RHL_SEED:--1}"
 RHL_STATS="${RHL_STATS:-0}"
+USE_PSEUDO_LABEL="${USE_PSEUDO_LABEL:-0}"
+PSEUDO_LABEL_STRATEGY="${PSEUDO_LABEL_STRATEGY:-}"
+PSEUDO_LABEL_CONFIDENCE="${PSEUDO_LABEL_CONFIDENCE:-0.7}"
+PSEUDO_LABEL_QUANTILE="${PSEUDO_LABEL_QUANTILE:-0.7}"
+PSEUDO_LABEL_MIN_CONF="${PSEUDO_LABEL_MIN_CONF:-0.0}"
+PSEUDO_LABEL_MAX_CONF="${PSEUDO_LABEL_MAX_CONF:-1.0}"
+PSEUDO_LABEL_MIN_PIXELS="${PSEUDO_LABEL_MIN_PIXELS:-1}"
+PSEUDO_LABEL_SHRINKAGE="${PSEUDO_LABEL_SHRINKAGE:-0.0}"
+PSEUDO_LABEL_MARGIN_MIN="${PSEUDO_LABEL_MARGIN_MIN:-0.0}"
+PSEUDO_LABEL_THRESHOLD_ARTIFACT="${PSEUDO_LABEL_THRESHOLD_ARTIFACT:-}"
+PSEUDO_LABEL_THRESHOLD_MAX_BATCHES="${PSEUDO_LABEL_THRESHOLD_MAX_BATCHES:-}"
+PSEUDO_LABEL_STATS="${PSEUDO_LABEL_STATS:-0}"
 
 DEFAULT_BATCH_SIZE="${DEFAULT_BATCH_SIZE:-32}"
 SPECIAL_BATCH_SIZE="${SPECIAL_BATCH_SIZE:-32}"
@@ -54,12 +66,39 @@ if [[ "$RHL_STATS" == "1" ]]; then
     RHL_STATS_ARG=(--rhl_stats)
 fi
 
+PSEUDO_LABEL_ARGS=()
+if [[ "$USE_PSEUDO_LABEL" == "1" ]]; then
+    PSEUDO_LABEL_ARGS+=(--use_pseudo_label)
+fi
+if [[ -n "$PSEUDO_LABEL_STRATEGY" ]]; then
+    PSEUDO_LABEL_ARGS+=(--pseudo_label_strategy "$PSEUDO_LABEL_STRATEGY")
+fi
+PSEUDO_LABEL_ARGS+=(
+    --pseudo_label_confidence "$PSEUDO_LABEL_CONFIDENCE"
+    --pseudo_label_quantile "$PSEUDO_LABEL_QUANTILE"
+    --pseudo_label_min_conf "$PSEUDO_LABEL_MIN_CONF"
+    --pseudo_label_max_conf "$PSEUDO_LABEL_MAX_CONF"
+    --pseudo_label_min_pixels "$PSEUDO_LABEL_MIN_PIXELS"
+    --pseudo_label_shrinkage "$PSEUDO_LABEL_SHRINKAGE"
+    --pseudo_label_margin_min "$PSEUDO_LABEL_MARGIN_MIN"
+)
+if [[ -n "$PSEUDO_LABEL_THRESHOLD_ARTIFACT" ]]; then
+    PSEUDO_LABEL_ARGS+=(--pseudo_label_threshold_artifact "$PSEUDO_LABEL_THRESHOLD_ARTIFACT")
+fi
+if [[ -n "$PSEUDO_LABEL_THRESHOLD_MAX_BATCHES" ]]; then
+    PSEUDO_LABEL_ARGS+=(--pseudo_label_threshold_max_batches "$PSEUDO_LABEL_THRESHOLD_MAX_BATCHES")
+fi
+if [[ "$PSEUDO_LABEL_STATS" == "1" ]]; then
+    PSEUDO_LABEL_ARGS+=(--pseudo_label_stats)
+fi
+
 echo "SegACIL experiment configuration:"
 echo "  model=${MODEL}, air_feature_source=${AIR_FEATURE_SOURCE}"
 echo "  task=${TASK}, setting=${SETTING}, steps=${START_STEP}-${END_STEP}"
 echo "  subpath=${SUBPATH}, base_subpath=${BASE_SUBPATH}"
 echo "  buffer=${BUFFER}, gamma=${GAMMA}, random_seed=${RANDOM_SEED}"
 echo "  rhl_norm=${RHL_NORM}, rhl_seed=${RHL_SEED}, rhl_stats=${RHL_STATS}"
+echo "  pseudo_label=${USE_PSEUDO_LABEL}, strategy=${PSEUDO_LABEL_STRATEGY:-<default>}, quantile=${PSEUDO_LABEL_QUANTILE}"
 echo "  ckpt=${CKPT:-<none>}, curr_itrs=${CURR_ITRS}"
 
 for ((CURR_STEP=START_STEP; CURR_STEP<=END_STEP; CURR_STEP+=STEP_INCREMENT))
@@ -108,5 +147,6 @@ do
         --rhl_norm_eps "$RHL_NORM_EPS" \
         --rhl_seed "$RHL_SEED" \
         "${RHL_STATS_ARG[@]}" \
+        "${PSEUDO_LABEL_ARGS[@]}" \
         --output_stride "$OUTPUT_STRIDE"
 done
