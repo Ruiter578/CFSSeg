@@ -143,6 +143,12 @@ bash run.sh
   - sequential 下旧类标签可见，伪标签不是主要矛盾；
   - 自适应阈值应优先在 `disjoint` / `overlap` 验证。
 - 若新增伪标签策略，必须显式处理 DeepLab tuple 输出和 AIR tensor 输出，不允许在 Trainer 里堆临时 shape hack。
+- 自适应伪标签 PhaseB artifact 路线已有执行链：
+  - calibration grid：`configs/pseudo_label_phaseB_artifact_calibration.tsv`；
+  - calibration runner：`tools/run_pseudo_label_artifact_calibration_grid.sh`；
+  - artifact train grid：`configs/pseudo_label_phaseB_artifact_train.tsv`；
+  - train runner：`tools/run_pseudo_label_grid.sh`，已支持 `threshold_artifact` / `threshold_max_batches` 可选列。
+- raw-mask pseudo-label quality audit 尚未实现；在确认 VOC raw mask 与 step1 train sample 的标签重映射和对齐方式前，不要写猜测审计逻辑。
 
 ### 6.1 研究路线避免保守
 
