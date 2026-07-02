@@ -1,3 +1,4 @@
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -5,36 +6,42 @@ from pathlib import Path
 from tools.summarize_pseudo_label_grid import group_miou, read_grid
 
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+PHASE_A_HEADER = [
+    "name",
+    "subpath",
+    "task",
+    "setting",
+    "strategy",
+    "confidence",
+    "quantile",
+    "min_conf",
+    "max_conf",
+    "min_pixels",
+    "shrinkage",
+    "margin_min",
+    "base_subpath",
+    "skip_step0",
+    "batch_size",
+    "step0_batch_size",
+    "buffer",
+    "gamma",
+    "random_seed",
+    "model",
+    "air_feature_source",
+]
+PHASE_B_HEADER = PHASE_A_HEADER + [
+    "threshold_artifact",
+    "threshold_max_batches",
+]
+
+
 class PseudoLabelGridSummaryTests(unittest.TestCase):
     def test_read_grid_accepts_phase_a_header(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             grid = Path(tmpdir) / "grid.tsv"
             grid.write_text(
-                "\t".join(
-                    [
-                        "name",
-                        "subpath",
-                        "task",
-                        "setting",
-                        "strategy",
-                        "confidence",
-                        "quantile",
-                        "min_conf",
-                        "max_conf",
-                        "min_pixels",
-                        "shrinkage",
-                        "margin_min",
-                        "base_subpath",
-                        "skip_step0",
-                        "batch_size",
-                        "step0_batch_size",
-                        "buffer",
-                        "gamma",
-                        "random_seed",
-                        "model",
-                        "air_feature_source",
-                    ]
-                )
+                "\t".join(PHASE_A_HEADER)
                 + "\n"
                 + "fixed0p6\tsub\t15-5\toverlap\tfixed\t0.6\t0.7\t0.0\t1.0\t1\t0.0\t0.0\tbase\t1\t32\t32\t8196\t1\t1\tdeeplabv3_resnet101\tauto\n",
                 encoding="utf-8",
@@ -45,6 +52,86 @@ class PseudoLabelGridSummaryTests(unittest.TestCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["name"], "fixed0p6")
         self.assertEqual(rows[0]["confidence"], "0.6")
+        self.assertEqual(rows[0]["threshold_artifact"], "")
+        self.assertEqual(rows[0]["threshold_max_batches"], "")
+
+    def test_read_grid_accepts_phase_b_artifact_columns(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            grid = Path(tmpdir) / "grid.tsv"
+            grid.write_text(
+                "\t".join(PHASE_B_HEADER)
+                + "\n"
+                + "artifact_q0p1\tsub\t15-5\toverlap\tartifact_class\t0.7\t0.1\t0.0\t1.0\t1\t0.0\t0.0\tbase\t1\t32\t32\t8196\t1\t1\tdeeplabv3_resnet101\tauto\tartifacts/pseudo_label/q0p1.json\t0\n",
+                encoding="utf-8",
+            )
+
+            rows = read_grid(grid)
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["strategy"], "artifact_class")
+        self.assertEqual(rows[0]["threshold_artifact"], "artifacts/pseudo_label/q0p1.json")
+        self.assertEqual(rows[0]["threshold_max_batches"], "0")
+
+    def test_grid_runner_dry_run_passes_artifact_environment(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            grid = Path(tmpdir) / "grid.tsv"
+            grid.write_text(
+                "\t".join(PHASE_B_HEADER)
+                + "\n"
+                + "artifact_q0p1\tsub\t15-5\toverlap\tartifact_class\t0.7\t0.1\t0.0\t1.0\t1\t0.0\t0.0\tbase\t1\t32\t32\t8196\t1\t1\tdeeplabv3_resnet101\tauto\tartifacts/pseudo_label/q0p1.json\t0\n",
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                [
+                    "bash",
+                    "tools/run_pseudo_label_grid.sh",
+                    "--grid",
+                    str(grid),
+                    "--mode",
+                    "dry-run",
+                ],
+                cwd=REPO_ROOT,
+                check=False,
+                text=True,
+                capture_output=True,
+            )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "PSEUDO_LABEL_THRESHOLD_ARTIFACT=artifacts/pseudo_label/q0p1.json",
+            result.stdout,
+        )
+        self.assertIn("PSEUDO_LABEL_THRESHOLD_MAX_BATCHES=0", result.stdout)
+
+    def test_grid_runner_rejects_artifact_class_without_artifact(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            grid = Path(tmpdir) / "grid.tsv"
+            grid.write_text(
+                "\t".join(PHASE_A_HEADER)
+                + "\n"
+                + "artifact_missing\tsub\t15-5\toverlap\tartifact_class\t0.7\t0.1\t0.0\t1.0\t1\t0.0\t0.0\tbase\t1\t32\t32\t8196\t1\t1\tdeeplabv3_resnet101\tauto\n",
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                [
+                    "bash",
+                    "tools/run_pseudo_label_grid.sh",
+                    "--grid",
+                    str(grid),
+                    "--mode",
+                    "dry-run",
+                ],
+                cwd=REPO_ROOT,
+                check=False,
+                text=True,
+                capture_output=True,
+            )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("artifact_class", result.stderr)
+        self.assertIn("threshold_artifact", result.stderr)
 
     def test_group_miou_finds_old_and_new_keys(self):
         old, new = group_miou(

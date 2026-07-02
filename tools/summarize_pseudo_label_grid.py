@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 
 
-GRID_FIELDS = [
+REQUIRED_GRID_FIELDS = [
     "name",
     "subpath",
     "task",
@@ -31,6 +31,13 @@ GRID_FIELDS = [
     "air_feature_source",
 ]
 
+OPTIONAL_GRID_FIELDS = [
+    "threshold_artifact",
+    "threshold_max_batches",
+]
+
+GRID_FIELDS = REQUIRED_GRID_FIELDS + OPTIONAL_GRID_FIELDS
+
 SUMMARY_FIELDS = [
     "name",
     "subpath",
@@ -41,6 +48,8 @@ SUMMARY_FIELDS = [
     "quantile",
     "min_conf",
     "margin_min",
+    "threshold_artifact",
+    "threshold_max_batches",
     "status",
     "all_miou",
     "old_miou",
@@ -73,15 +82,20 @@ def latest_result(output_dir):
 def read_grid(path):
     with Path(path).open(newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle, delimiter="\t")
-        if reader.fieldnames != GRID_FIELDS:
+        if reader.fieldnames not in (REQUIRED_GRID_FIELDS, GRID_FIELDS):
             raise ValueError(
-                f"Unexpected grid header in {path}: {reader.fieldnames}; expected {GRID_FIELDS}"
+                f"Unexpected grid header in {path}: {reader.fieldnames}; expected "
+                f"{REQUIRED_GRID_FIELDS} or {GRID_FIELDS}"
             )
-        return [
-            {key: (value or "").strip() for key, value in row.items()}
-            for row in reader
-            if row.get("name") and not row["name"].lstrip().startswith("#")
-        ]
+        rows = []
+        for row in reader:
+            if not row.get("name") or row["name"].lstrip().startswith("#"):
+                continue
+            normalized = {key: (value or "").strip() for key, value in row.items()}
+            for key in OPTIONAL_GRID_FIELDS:
+                normalized.setdefault(key, "")
+            rows.append(normalized)
+        return rows
 
 
 def group_miou(results):
@@ -133,6 +147,8 @@ def summarize_row(row, checkpoints_root, dataset, off_baseline, fixed07_baseline
         "quantile",
         "min_conf",
         "margin_min",
+        "threshold_artifact",
+        "threshold_max_batches",
     ]:
         summary[key] = row.get(key, "")
 
@@ -189,6 +205,7 @@ def write_markdown(rows, output_path, title, fixed07_baseline):
         "strategy",
         "confidence",
         "quantile",
+        "threshold_artifact",
         "status",
         "all_miou",
         "old_miou",
