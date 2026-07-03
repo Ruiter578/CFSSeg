@@ -12,13 +12,13 @@ LOSS_TYPE="bce_loss"
 DATASET="voc"
 TASK="15-5"
 LR_POLICY="poly"
-SUBPATH="${SUBPATH:-20260626_buffer8196_step1_32_run2_trs}"  # TRS server output directory under checkpoints/
+SUBPATH="${SUBPATH:-20260703_buffer8216_step1_32_run2_trs}"  # TRS server output directory under checkpoints/
 BASE_SUBPATH="${BASE_SUBPATH:-20260621_baseline_bs16_16_trs}" # TRS step0 checkpoint used when START_STEP=1
 METHOD="acil"
 SETTING="sequential"
 TRAIN_EPOCH=50
 PRETRAINED_BACKBONE="--pretrained_backbone"
-BUFFER=8196     # origin value: 8196
+BUFFER=8216     # origin value: 8196
 OUTPUT_STRIDE=8
 GAMMA="${GAMMA:-1}"
 RHL_NORM="${RHL_NORM:-none}"               # default: none, RHL normalization disabled
