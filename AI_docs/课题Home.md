@@ -244,6 +244,26 @@ step2+:
 
 结论：按结项指标看，当前 `15-5 sequential` 已超过 65.9% 单模型目标和 67.0% 集成系统目标。V3+ 主线化后，最佳 all mIoU 已达到约 70.36%。但论文发表仍需要方法改进、消融、统计和故事线，而不是只交复现或架构替换结果。
 
+### 6.2.1 自适应伪标签阈值阶段性结果
+
+截至 2026-07-05，`feature/adaptive-pseudo-label` 已完成 `15-5 overlap step1` 的 Phase A / Phase B 搜索。所有核心结果使用同一个 step0：
+
+```text
+20260627_pseudo_15-5_overlap_batchclass_q0p7_seed1_bs32
+```
+
+当前同协议关键结果：
+
+| 策略 | old mIoU | new mIoU | all mIoU | 备注 |
+|---|---:|---:|---:|---|
+| `off` | 79.12 | 42.12 | 70.31 | 无伪标签 |
+| `fixed0.6` | 79.68 | 42.28 | 70.77 | 当前最强 fixed baseline |
+| `batch_class q0.1` | 79.68 | 42.27 | 70.77 | 接近但未超过 fixed0.6 |
+| `artifact q0.005` | 79.72 | 42.29 | 70.81 | 当前最强 adaptive 单点 |
+| `artifact q0.01` | 79.72 | 42.29 | 70.81 | 与 q0.005 基本并列 |
+
+当前结论：offline artifact 低分位路线有弱正向信号，最佳区间为 `q0.005-q0.01`，但涨点幅度很小，尚不能作为论文级强结论。下一步应优先做 raw-mask pseudo-label quality audit、`15-5 disjoint` 复验和 `15-1 overlap` 论文协议对齐。
+
 ### 6.3 当前脚本状态
 
 当前 `run.sh` 是统一入口，核心变量为：
@@ -306,9 +326,9 @@ AGENTS.md
 
 ### 第二优先级：自适应伪标签阈值
 
-目标：把固定 `pseudo_label_confidence=0.7` 改成 batch-level 或 class-wise adaptive threshold，主要验证 `15-5 disjoint` / `15-5 overlap`。
+目标：把固定伪标签阈值改成更稳定的 class-wise/offline adaptive threshold，主要验证 `15-5 disjoint` / `15-5 overlap`，最终对齐 `15-1 overlap` 论文协议。
 
-注意：sequential 下旧类标签可见，伪标签不是主要矛盾。若只跑 sequential，伪标签收益可能很弱。
+当前进展：batch-level quantile 已完成 Phase A，不能超过 `fixed0.6`；offline `artifact_class` 已完成 Phase B，`q0.005-q0.01` 在 `15-5 overlap` 上略高于 fixed baseline。注意：sequential 下旧类标签可见，伪标签不是主要矛盾。若只跑 sequential，伪标签收益可能很弱。
 
 ### 第三优先级：轻量解析集成
 
@@ -337,7 +357,7 @@ shared step0 DeepLabV3-ResNet101
 1. DeepLabV3+ 已完成主线融合，可以作为后续实验 base；但论文表述必须写清 `DeepLabV3+ + aspp_up AIR feature`，不能把全部收益说成"只换模型"。
 2. 当前不再继续围绕 V3+ 做额外验证；后续集中推进 RHL 五方法和自适应伪标签阈值。
 3. RHL 线优先保证变量可归因：`random_seed`、`rhl_seed`、`BUFFER`、`GAMMA`、`RHL_NORM`、`MODEL`、`AIR_FEATURE_SOURCE` 必须记录。
-4. 伪标签改进应优先在 `disjoint` / `overlap` 验证，不要只用 sequential 判断其价值。
+4. 伪标签改进应优先在 `disjoint` / `overlap` 验证，不要只用 sequential 判断其价值。当前 `15-5 overlap` 最强单点是 `artifact_class q0.005/q0.01`，但涨点很小，下一步必须做 quality audit、disjoint 复验和 `15-1 overlap` 主协议验证。
 5. 集成系统优先做共享 encoder / 解析头 / RHL 子空间的轻量集成，除非有明确证据再上多 backbone 或 snapshot。
 
 ## 9. 后续代理接手时的最小阅读顺序
