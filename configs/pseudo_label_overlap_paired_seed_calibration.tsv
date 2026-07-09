@@ -1,0 +1,3 @@
+name	artifact_path	task	setting	teacher_ckpt	quantile	min_conf	max_conf	min_pixels	shrinkage	max_batches	batch_size	random_seed
+artifact_q0p01_seed2	artifacts/pseudo_label/phaseB_15-5_overlap_q0p01_seed2.json	15-5	overlap	checkpoints/20260627_pseudo_15-5_overlap_batchclass_q0p7_seed1_bs32/voc/15-5/overlap/step0/deeplabv3_resnet101_voc_15-5_step_0_overlap.pth	0.01	0.0	1.0	1	0.0	0	32	2
+artifact_q0p01_seed3	artifacts/pseudo_label/phaseB_15-5_overlap_q0p01_seed3.json	15-5	overlap	checkpoints/20260627_pseudo_15-5_overlap_batchclass_q0p7_seed1_bs32/voc/15-5/overlap/step0/deeplabv3_resnet101_voc_15-5_step_0_overlap.pth	0.01	0.0	1.0	1	0.0	0	32	3

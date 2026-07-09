@@ -1,0 +1,5 @@
+name	artifact_path	task	setting	teacher_ckpt	quantile	min_conf	max_conf	min_pixels	shrinkage	max_batches	batch_size	random_seed
+disjoint_artifact_q0p00	artifacts/pseudo_label/phaseB_15-5_disjoint_q0p00.json	15-5	disjoint	checkpoints/20260705_pseudo_15-5_disjoint_off_seed1_bs32/voc/15-5/disjoint/step0/deeplabv3_resnet101_voc_15-5_step_0_disjoint.pth	0.0	0.0	1.0	1	0.0	0	32	1
+disjoint_artifact_q0p01	artifacts/pseudo_label/phaseB_15-5_disjoint_q0p01.json	15-5	disjoint	checkpoints/20260705_pseudo_15-5_disjoint_off_seed1_bs32/voc/15-5/disjoint/step0/deeplabv3_resnet101_voc_15-5_step_0_disjoint.pth	0.01	0.0	1.0	1	0.0	0	32	1
+disjoint_artifact_q0p015	artifacts/pseudo_label/phaseB_15-5_disjoint_q0p015.json	15-5	disjoint	checkpoints/20260705_pseudo_15-5_disjoint_off_seed1_bs32/voc/15-5/disjoint/step0/deeplabv3_resnet101_voc_15-5_step_0_disjoint.pth	0.015	0.0	1.0	1	0.0	0	32	1
+disjoint_artifact_q0p005_minconf0p6	artifacts/pseudo_label/phaseB_15-5_disjoint_q0p005_minconf0p6.json	15-5	disjoint	checkpoints/20260705_pseudo_15-5_disjoint_off_seed1_bs32/voc/15-5/disjoint/step0/deeplabv3_resnet101_voc_15-5_step_0_disjoint.pth	0.005	0.6	1.0	1	0.0	0	32	1

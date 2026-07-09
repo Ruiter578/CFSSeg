@@ -1,0 +1,2 @@
+name	subpath	task	setting	strategy	confidence	quantile	min_conf	max_conf	min_pixels	shrinkage	margin_min	base_subpath	skip_step0	batch_size	step0_batch_size	buffer	gamma	random_seed	model	air_feature_source	threshold_artifact	threshold_max_batches
+disjoint_artifact_q0p005	20260705_pseudo_15-5_disjoint_artifact_q0p005_seed1_bs32_reuse20260705disjointstep0	15-5	disjoint	artifact_class	0.7	0.005	0.0	1.0	1	0.0	0.0	20260705_pseudo_15-5_disjoint_off_seed1_bs32	1	32	32	8196	1	1	deeplabv3_resnet101	auto	artifacts/pseudo_label/phaseB_15-5_disjoint_q0p005.json	0
