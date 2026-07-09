@@ -1,3 +1,5 @@
+import os
+
 from torch.utils.data import DataLoader
 from datasets import VOCSegmentation, ADESegmentation, CityscapesSegmentationIncrementalDomain
 
@@ -55,21 +57,27 @@ def get_dataset(opts : Config):
     return dataset_dict
 
 
+def _pin_memory_enabled():
+    value = os.environ.get("SEGACIL_PIN_MEMORY", "1").strip().lower()
+    return value not in {"0", "false", "no", "off"}
+
+
 def init_dataloader(opts : Config):
     # Setup dataloader
     if not opts.crop_val:
         opts.val_batch_size = 1
     
     dataset_dict = get_dataset(opts)
+    pin_memory = _pin_memory_enabled()
 
     train_loader = DataLoader(
-        dataset_dict['train'], shuffle=True, batch_size=opts.batch_size, num_workers=4, pin_memory=True, drop_last=True)
+        dataset_dict['train'], shuffle=True, batch_size=opts.batch_size, num_workers=4, pin_memory=pin_memory, drop_last=True)
     
     if opts.local_rank == 0:
         val_loader = DataLoader(
-            dataset_dict['val'], batch_size=opts.val_batch_size, shuffle=False, num_workers=4, pin_memory=True)
+            dataset_dict['val'], batch_size=opts.val_batch_size, shuffle=False, num_workers=4, pin_memory=pin_memory)
         test_loader = DataLoader(
-            dataset_dict['test'], batch_size=opts.val_batch_size, shuffle=False, num_workers=4, pin_memory=True)
+            dataset_dict['test'], batch_size=opts.val_batch_size, shuffle=False, num_workers=4, pin_memory=pin_memory)
     else:
         val_loader, test_loader = None, None
     
