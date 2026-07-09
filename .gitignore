@@ -64,3 +64,23 @@ logs/**
 
 # Local papers and large documents
 *.pdf
+
+# CFSSeg 3D local data, outputs, and machine-specific artifacts
+CFSSeg-code3D/datasets/**
+!CFSSeg-code3D/datasets/**/
+!CFSSeg-code3D/datasets/**/.gitkeep
+CFSSeg-code3D/log_s3dis/**
+CFSSeg-code3D/log_scannet/**
+CFSSeg-code3D/nohup*
+CFSSeg-code3D/slurm*
+CFSSeg-code3D/**/*.py[cod]
+CFSSeg-code3D/**/__pycache__/
+CFSSeg-code3D/.pytest_cache/
+CFSSeg-code3D/.mypy_cache/
+CFSSeg-code3D/*.whl
+data_root_3d/
+
+# 3D experiment outputs: keep the directory placeholder only.
+checkpoints_3d/**
+!checkpoints_3d/
+!checkpoints_3d/.gitkeep
