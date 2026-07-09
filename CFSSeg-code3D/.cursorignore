@@ -1,0 +1,5 @@
+# Add directories or file patterns to ignore during indexing (e.g. foo/ or *.csv)
+datasets/
+log_s3dis/
+log_scannet/
+
