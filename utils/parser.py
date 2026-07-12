@@ -20,6 +20,8 @@ class Config:
     train_epoch: int = 50
     curr_itrs: int = 0
     lr: float = 0.01
+    backbone_lr: float = 0.001
+    classifier_lr: float = 0.01
     lr_policy: str = 'warm_poly'
     step_size: int = 10000
     crop_val: bool = True
@@ -63,6 +65,8 @@ class Config:
     # RHL-SE 独立种子。-1 表示不启用独立 RHL 种子，保持原始随机初始化路径。
     rhl_seed: int = -1
     rhl_stats: bool = False
+    analytic_tail_epsilon: float = 1e-3
+    evaluation_mode: str = 'test'
 
     use_pseudo_label: bool = False
     pseudo_label_confidence: float = 0.7
@@ -87,6 +91,8 @@ def get_argparser() -> Config:
     parser.add_argument("--train_epoch", type=int, default=Config.train_epoch, help="epoch number")
     parser.add_argument("--curr_itrs", type=int, default=Config.curr_itrs)
     parser.add_argument("--lr", type=float, default=Config.lr, help="learning rate (default: 0.01)")
+    parser.add_argument("--backbone_lr", type=float, default=Config.backbone_lr)
+    parser.add_argument("--classifier_lr", type=float, default=Config.classifier_lr)
     parser.add_argument("--lr_policy", type=str, default=Config.lr_policy, choices=['poly', 'step', 'warm_poly'], help="learning rate scheduler")
     parser.add_argument("--step_size", type=int, default=Config.step_size)
     parser.add_argument("--crop_val", action='store_true', default=Config.crop_val, help='crop validation (default: False)')
@@ -159,6 +165,14 @@ def get_argparser() -> Config:
         action='store_true',
         default=Config.rhl_stats,
         help="print lightweight RHL output statistics for the first few fit batches"
+    )
+    parser.add_argument("--analytic_tail_epsilon", type=float, default=Config.analytic_tail_epsilon)
+    parser.add_argument(
+        "--evaluation_mode",
+        type=str,
+        default=Config.evaluation_mode,
+        choices=["val", "test", "both"],
+        help="dataset split(s) evaluated after an analytic incremental update",
     )
 
     parser.add_argument("--use_pseudo_label", action='store_true', default=Config.use_pseudo_label, help="is use pseudo label")

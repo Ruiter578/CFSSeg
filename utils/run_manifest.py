@@ -180,6 +180,8 @@ def write_run_manifest(
         "method": args.get("method"),
         "loss_type": args.get("loss_type"),
         "lr": args.get("lr"),
+        "backbone_lr": args.get("backbone_lr"),
+        "classifier_lr": args.get("classifier_lr"),
         "lr_policy": args.get("lr_policy"),
         "train_epoch": args.get("train_epoch"),
         "weight_decay": args.get("weight_decay"),
@@ -190,6 +192,8 @@ def write_run_manifest(
         "rhl_norm_eps": args.get("rhl_norm_eps"),
         "rhl_seed": args.get("rhl_seed"),
         "rhl_stats": args.get("rhl_stats"),
+        "analytic_tail_epsilon": args.get("analytic_tail_epsilon"),
+        "evaluation_mode": args.get("evaluation_mode"),
         "use_pseudo_label": args.get("use_pseudo_label"),
         "pseudo_label_confidence": args.get("pseudo_label_confidence"),
     }

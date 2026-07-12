@@ -95,8 +95,10 @@ class RecursiveLinear(AnalyticLinear):
         bias: bool = False,
         device: Optional[Union[torch.device, str, int]] = None,
         dtype=torch.double,
+        tail_epsilon: float = 1e-3,
     ) -> None:
         super().__init__(in_features, gamma, bias, device, dtype)
+        self.tail_epsilon = float(tail_epsilon)
         factory_kwargs = {"device": device, "dtype": dtype}
 
         # Regularized Feature Autocorrelation Matrix (RFAuM)
@@ -132,10 +134,12 @@ class RecursiveLinear(AnalyticLinear):
         num_targets = Y.shape[1]
         
         # print(num_targets)
-        epsilon = 1e-3
         if num_targets > self.out_features:
             increment_size = num_targets - self.out_features
-            tail = torch.randn((self.weight.shape[0], increment_size)).to(self.weight) * epsilon
+            tail = (
+                torch.randn((self.weight.shape[0], increment_size)).to(self.weight)
+                * self.tail_epsilon
+            )
             self.weight = torch.cat((self.weight, tail), dim=1)
         elif num_targets < self.out_features:
             increment_size = self.out_features - num_targets

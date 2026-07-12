@@ -33,6 +33,7 @@ class AIR(nn.Module):
         rhl_norm_eps=1e-6,
         rhl_seed=-1,
         rhl_stats=False,
+        analytic_tail_epsilon=1e-3,
     ):
         super(AIR, self).__init__()
         factory_kwargs = {"device": device, "dtype": dtype}
@@ -52,7 +53,12 @@ class AIR(nn.Module):
             rhl_seed=rhl_seed,
             **factory_kwargs,
         )
-        self.analytic_linear = linear(buffer_size, gamma, **factory_kwargs)
+        self.analytic_linear = linear(
+            buffer_size,
+            gamma,
+            tail_epsilon=analytic_tail_epsilon,
+            **factory_kwargs,
+        )
         self.H = 0
         self.W = 0
         self.channle = 0
@@ -102,6 +108,28 @@ class AIR(nn.Module):
         self.analytic_linear.update()
 
 class Trainer(object):
+    @staticmethod
+    def evaluation_modes(mode):
+        modes = {
+            "val": ("val",),
+            "test": ("test",),
+            "both": ("val", "test"),
+        }
+        if mode not in modes:
+            raise ValueError(f"Unknown evaluation mode: {mode}")
+        return modes[mode]
+
+    @staticmethod
+    def evaluation_result_prefix(mode):
+        if mode not in {"val", "test"}:
+            raise ValueError(f"Unknown evaluation mode: {mode}")
+        return f"{mode}_results"
+
+    def evaluate_configured_modes(self, after_realign=False):
+        evaluator = self.do_evaluate_after_realign if after_realign else self.do_evaluate
+        for mode in self.evaluation_modes(self.opts.evaluation_mode):
+            evaluator(mode=mode)
+
     @staticmethod
     def make_step0_loader_opts(opts):
         step0_opts = copy.deepcopy(opts)
@@ -305,8 +333,10 @@ class Trainer(object):
 
 
     def init_optimizer(self):
-        training_params = [{'params': self.model.backbone.parameters(), 'lr': 0.001},
-                        {'params': self.model.classifier.parameters(), 'lr': 0.01}]
+        training_params = [
+            {'params': self.model.backbone.parameters(), 'lr': self.opts.backbone_lr},
+            {'params': self.model.classifier.parameters(), 'lr': self.opts.classifier_lr},
+        ]
         optimizer = torch.optim.SGD(params=training_params, 
                                     lr=self.opts.lr, 
                                     momentum=0.9, 
@@ -407,6 +437,7 @@ class Trainer(object):
                 rhl_norm_eps=self.opts.rhl_norm_eps,
                 rhl_seed=self.opts.rhl_seed,
                 rhl_stats=self.opts.rhl_stats,
+                analytic_tail_epsilon=self.opts.analytic_tail_epsilon,
             ).to(self.device).eval()
             for seq, (X, y, _) in enumerate(self.train_loader0):
                 X, y = X.to(self.device), y.to(self.device)
@@ -415,7 +446,7 @@ class Trainer(object):
             print("start test!")
             save_ckpt(self.root_path0 + "final.pth", self.model, None, None)
             del self.model
-            self.do_evaluate_after_realign(mode='test')
+            self.evaluate_configured_modes(after_realign=True)
 
             print("start training")
             torch.cuda.empty_cache()
@@ -427,7 +458,7 @@ class Trainer(object):
                 self.model.fit(X, y)
             self.model.update()
             save_ckpt(self.root_path + "final.pth", self.model, None, None)
-            self.do_evaluate(mode='test')
+            self.evaluate_configured_modes()
         else:
             self.model = load_ckpt(self.ckpt)[0].to(self.device).eval()
             self.model_prev = load_ckpt(self.ckpt)[0].to(self.device).eval()
@@ -451,7 +482,7 @@ class Trainer(object):
             self.model.update()
 
             save_ckpt(self.root_path + "final.pth", self.model, None, None)
-            self.do_evaluate(mode='test')
+            self.evaluate_configured_modes()
 
     def do_evaluate(self, mode='val'):
         print("[Testing Best Model]")
@@ -500,7 +531,8 @@ class Trainer(object):
 
         # save results as json
         current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-        with open(f"{self.root_path}/test_results_{current_time}.json", 'w') as f:
+        result_prefix = self.evaluation_result_prefix(mode)
+        with open(f"{self.root_path}/{result_prefix}_{current_time}.json", 'w') as f:
             f.write(json.dumps(test_score, indent=4))
             f.close()
 
@@ -549,7 +581,8 @@ class Trainer(object):
 
         # save results as json
         current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-        with open(f"{self.root_path0}/test_results_{current_time}.json", 'w') as f:
+        result_prefix = self.evaluation_result_prefix(mode)
+        with open(f"{self.root_path0}/{result_prefix}_{current_time}.json", 'w') as f:
             f.write(json.dumps(test_score, indent=4))
             f.close()
 

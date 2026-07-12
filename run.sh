@@ -13,6 +13,8 @@ DATA_ROOT="${DATA_ROOT:-/root/2TStorage/lyc/SegACIL/data_root/VOC2012}"
 MODEL="${MODEL:-deeplabv3_resnet101}"
 AIR_FEATURE_SOURCE="${AIR_FEATURE_SOURCE:-auto}"
 LR="${LR:-0.01}"
+BACKBONE_LR="${BACKBONE_LR:-0.001}"
+CLASSIFIER_LR="${CLASSIFIER_LR:-0.01}"
 LOSS_TYPE="${LOSS_TYPE:-bce_loss}"
 DATASET="${DATASET:-voc}"
 TASK="${TASK:-15-5}"
@@ -35,6 +37,8 @@ RHL_NORM="${RHL_NORM:-none}"
 RHL_NORM_EPS="${RHL_NORM_EPS:-1e-6}"
 RHL_SEED="${RHL_SEED:--1}"
 RHL_STATS="${RHL_STATS:-0}"
+ANALYTIC_TAIL_EPSILON="${ANALYTIC_TAIL_EPSILON:-1e-3}"
+EVALUATION_MODE="${EVALUATION_MODE:-test}"
 
 DEFAULT_BATCH_SIZE="${DEFAULT_BATCH_SIZE:-32}"
 SPECIAL_BATCH_SIZE="${SPECIAL_BATCH_SIZE:-32}"
@@ -59,7 +63,9 @@ echo "  model=${MODEL}, air_feature_source=${AIR_FEATURE_SOURCE}"
 echo "  task=${TASK}, setting=${SETTING}, steps=${START_STEP}-${END_STEP}"
 echo "  subpath=${SUBPATH}, base_subpath=${BASE_SUBPATH}"
 echo "  buffer=${BUFFER}, gamma=${GAMMA}, random_seed=${RANDOM_SEED}"
+echo "  optimizer_lr: backbone=${BACKBONE_LR}, classifier=${CLASSIFIER_LR}"
 echo "  rhl_norm=${RHL_NORM}, rhl_seed=${RHL_SEED}, rhl_stats=${RHL_STATS}"
+echo "  analytic_tail_epsilon=${ANALYTIC_TAIL_EPSILON}, evaluation_mode=${EVALUATION_MODE}"
 echo "  ckpt=${CKPT:-<none>}, curr_itrs=${CURR_ITRS}"
 
 for ((CURR_STEP=START_STEP; CURR_STEP<=END_STEP; CURR_STEP+=STEP_INCREMENT))
@@ -86,6 +92,8 @@ do
         --model "$MODEL" \
         --air_feature_source "$AIR_FEATURE_SOURCE" \
         --lr "$LR" \
+        --backbone_lr "$BACKBONE_LR" \
+        --classifier_lr "$CLASSIFIER_LR" \
         --batch_size "$CURR_BATCH_SIZE" \
         --loss_type "$LOSS_TYPE" \
         --dataset "$DATASET" \
@@ -107,6 +115,8 @@ do
         --rhl_norm "$RHL_NORM" \
         --rhl_norm_eps "$RHL_NORM_EPS" \
         --rhl_seed "$RHL_SEED" \
+        --analytic_tail_epsilon "$ANALYTIC_TAIL_EPSILON" \
+        --evaluation_mode "$EVALUATION_MODE" \
         "${RHL_STATS_ARG[@]}" \
         --output_stride "$OUTPUT_STRIDE"
 done
