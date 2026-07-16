@@ -19,11 +19,11 @@ def get_raw2scannet_label_map(label_mapping_file):
         elements = lines[i].split('\t')
         raw_name = elements[1]
         nyu40_name = elements[7]
-        
+
         # 修复refrigerator拼写错误问题
         if nyu40_name == 'refridgerator':
             nyu40_name = 'refrigerator'
-            
+
         if nyu40_name not in label_classes_set:
             raw2scannet[raw_name] = 'unannotated'
         else:

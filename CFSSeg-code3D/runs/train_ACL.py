@@ -63,7 +63,7 @@ class AIR(torch.nn.Module):
             mask = y != ignore_index
             if mask.sum() > 0:  # 确保有样本可用
                 X = X[mask]
-                y = y[mask]        
+                y = y[mask]
         # print('X:', X.shape)
         # print('y:', y.shape)
         self.analytic_linear.fit(X, y)
@@ -105,13 +105,13 @@ def metric_evaluate_test(predicted_label, gt_label, NUM_CLASS, class_id, logger,
         mean_IoU = np.sum(IoU_list[1:]) / (len(class_id) - 1) # Exclude the ignore labels
     else:
         mean_IoU = np.sum(IoU_list) / len(class_id)
-        
+
     # 计算基类和增量类的平均mIoU
     base_mIoU, incre_mIoU = None, None
 
     # print('base_classes',base_classes)
     # print('incre_classes',incre_classes)
-    
+
     if base_classes is not None and incre_classes is not None:
         # 计算基类的平均mIoU
         base_indices = [cls_idx for cls_idx in range(NUM_CLASS) if cls_idx in base_classes]
@@ -120,7 +120,7 @@ def metric_evaluate_test(predicted_label, gt_label, NUM_CLASS, class_id, logger,
         base_IoUs = [IoU_list[i] for i in base_indices]
         base_mIoU = np.mean(base_IoUs) if base_IoUs else 0.0
         logger.cprint(f'Base Classes mIoU: {base_mIoU:.4f}')
-        
+
         # 计算增量类的平均mIoU
         incre_indices = [cls_idx for cls_idx in range(NUM_CLASS) if cls_idx in incre_classes]
         incre_IoUs = [IoU_list[i] for i in incre_indices]
@@ -261,7 +261,7 @@ def ACL(args):
         VALID_DATASET = MyDataset(args.data_path, CLASSES, CURRENT_CLASS, CLASS2SCAN, step, mode='test', valid_set=VALID_SET,
                                           num_point=args.pc_npts, pc_attribs=args.pc_attribs,
                                           pc_augm=args.pc_augm, pc_augm_config=PC_AUGMENT_CONFIG)
-        
+
         TRAIN_BASE_DATASET = MyDataset(args.data_path, BASE_CLASSES, BASE_CLASSES, CLASS2SCAN, step, mode='train', valid_set=VALID_SET,
                                           num_point=args.pc_npts, pc_attribs=args.pc_attribs,
                                           pc_augm=args.pc_augm, pc_augm_config=PC_AUGMENT_CONFIG)
@@ -272,7 +272,7 @@ def ACL(args):
         logger = init_logger(LOG_DIR, args)
         logger.cprint('=== Train Dataset (classes: {0}) | Train: {1} blocks | Valid: {2} blocks ==='.format(
                                                          CLASSES, len(TRAIN_DATASET), len(VALID_DATASET)))
-     
+
 
 
         TRAIN_LOADER = DataLoader(TRAIN_DATASET, batch_size=args.batch_size, num_workers=args.n_workers, shuffle=True,
@@ -280,13 +280,13 @@ def ACL(args):
 
         VALID_LOADER = DataLoader(VALID_DATASET, batch_size=args.batch_size, num_workers=args.n_workers, shuffle=False,
                                   drop_last=True)
-        
+
         TRAIN_BASE_LOADER = DataLoader(TRAIN_BASE_DATASET, batch_size=args.batch_size, num_workers=args.n_workers, shuffle=True,
                                   drop_last=True)
 
         VALID_BASE_LOADER = DataLoader(VALID_BASE_DATASET, batch_size=args.batch_size, num_workers=args.n_workers, shuffle=False,
                                   drop_last=True)
-        
+
 
         WRITER = SummaryWriter(log_dir=LOG_DIR)
 
@@ -406,7 +406,7 @@ def ACL(args):
                     # 　Compute predictions
                     _, preds = torch.max(logits_cls.detach(), dim=1, keepdim=False)
                     pred_end_total.append(preds.cpu().detach())
-                           
+
                     WRITER.add_scalar('Valid/loss', loss, global_iter)
                     logger.cprint('=====[Valid] End | Iter: %d | Loss: %.4f =====' % (i, loss.item()))
 
@@ -421,7 +421,7 @@ def ACL(args):
 
             logger.cprint('*******************End of evaluate the Base Model*******************')
 
-                   
+
 
             WRITER.close()
         elif step > 0 and STEP==2:
@@ -443,11 +443,11 @@ def ACL(args):
 
             if torch.cuda.is_available():
                 model_old.cuda()
-            
-                classifer_old.cuda()
-             
 
-            logger.cprint('*******************Start Re-align Base *******************')    
+                classifer_old.cuda()
+
+
+            logger.cprint('*******************Start Re-align Base *******************')
             # Re-align the base model
             AIRMODEL= AIR(backbone_output=128, backbone=model_old, buffer_size=5000, gamma=1, device=torch.device("cuda"), dtype=torch.double, linear=GeneralizedARM)
             with torch.no_grad():
@@ -478,7 +478,7 @@ def ACL(args):
                         ptclouds = ptclouds.cuda()
                         labels = labels.cuda()
 
-             
+
                     logits_cls=AIRMODEL(ptclouds)
 
                     # 　Compute predictions
@@ -491,7 +491,7 @@ def ACL(args):
             accuracy, mIoU, iou_perclass = metric_evaluate(pred_total, gt_total, NUM_BASE_CLASSES + 1, NUM_ALL_CLASSES,
                                                            'eval_Base', BASE_CLASSES, logger, args.dataset)
             logger.cprint('===== Accuracy: %f | mIoU: %f =====\n' % (accuracy, mIoU))
-            logger.cprint('*******************End Evaluate Re-align Base *******************')           
+            logger.cprint('*******************End Evaluate Re-align Base *******************')
             logger.cprint('*******************Start of Training the Incre Model*******************')
 
             AIRMODEL_OLD = copy.deepcopy(AIRMODEL)
@@ -512,7 +512,7 @@ def ACL(args):
                     # labels = torch.where(labels == 0, 0, labels + int(NUM_BASE_CLASSES))
                     # #打印labels的唯一值
                     # print('labels:',labels.unique())
-                    #ptclouds B,D,N  pred_old B,C,N 
+                    #ptclouds B,D,N  pred_old B,C,N
                     #index_probs [B×N, k_probs, C] uncertain_old [B×N] uncertain_knn [B×N, k_probs, 1]
                     # Uncertainty-aware Pseudo-label Generation -> Mixed Labels
                     labels_new = torch.where(labels == 0, pred_old.argmax(dim=1), labels + int(NUM_BASE_CLASSES) + step - 1)
@@ -570,13 +570,13 @@ def ACL(args):
                     AIRMODEL.fit(ptclouds, labels_new_cls, ignore_index=0)
                     # if i>=2:
                     #     break
-       
+
                 AIRMODEL.update()
             logger.cprint('*******************End of Training the Incre Model*******************')
             logger.cprint('*******************Eval the Incre Model*******************')
             pred_end_total = []
             gt_end_total = []
-            
+
             with torch.no_grad():
                 for i, (ptclouds, labels) in enumerate(VALID_LOADER):
                     gt_end_total.append(labels.detach())
@@ -593,7 +593,7 @@ def ACL(args):
                     logits_new_cls_eval = torch.zeros([BN, 1 + NUM_ALL_CLASSES - NUM_BASE_CLASSES]).cuda()
                     logits_new_cls_eval[:, 0] = torch.sum(logits_new_cls[:, :NUM_BASE_CLASSES+1], dim=1)
                     logits_new_cls_eval[:, 1:] = logits_new_cls[:, NUM_BASE_CLASSES+1:]
- 
+
 
                     # Compute predictions
                     _, preds = torch.max(logits_new_cls_eval.detach(), dim=1, keepdim=False)
@@ -640,7 +640,7 @@ def ACL(args):
                                         pc_augm=False, pc_augm_config=None)
 
             TEST_LOADER = DataLoader(TEST_DATASET, batch_size=args.batch_size, num_workers=args.n_workers, shuffle=False,
-                                    drop_last=True)      
+                                    drop_last=True)
             #TEST_LOADER 没有背景类的标签而且是从1开始的 s3dis是1到13，scannet是1到21
             pred_total = []
             gt_total = []
@@ -648,9 +648,9 @@ def ACL(args):
                 for i, (_, ptclouds, labels) in enumerate(TEST_LOADER):
                     # print('labels:',labels.unique())
                     labels = labels-int(1)
-                    # print('labels:',labels.unique()) 
+                    # print('labels:',labels.unique())
                     gt_total.append(labels.detach())
-                    
+
 
                     if torch.cuda.is_available():
                         ptclouds = ptclouds.cuda()
@@ -662,7 +662,7 @@ def ACL(args):
                     #logits_cls 是B*N,C 我要去掉第一个背景类
 
                     logits_cls=logits_cls[:,1:]
-               
+
                     # 　Compute predictions
                     _, preds = torch.max(logits_cls.detach(), dim=1, keepdim=False)
                     pred_total.append(preds.cpu().detach())
@@ -672,11 +672,11 @@ def ACL(args):
             gt_total = torch.stack(gt_total, dim=0).view(-1, args.pc_npts)
 
             accuracy, mIoU, iou_perclass, base_mIoU, incre_mIoU = metric_evaluate_test(
-                pred_total, gt_total, len(TEST_CLASSES), TEST_CLASSES, logger, args.dataset, 
+                pred_total, gt_total, len(TEST_CLASSES), TEST_CLASSES, logger, args.dataset,
                 base_classes=BASE_CLASSES, incre_classes=INCRE_CLASSES
             )
 
-            logger.cprint('===== [Test]: Accuracy: %f | mIoU: %f | Base mIoU: %f | Incre mIoU: %f =====\n' % 
+            logger.cprint('===== [Test]: Accuracy: %f | mIoU: %f | Base mIoU: %f | Incre mIoU: %f =====\n' %
                         (accuracy, mIoU, base_mIoU, incre_mIoU))
             write_acl_result_summary(
                 args.log_dir, args, step, TEST_CLASSES, BASE_CLASSES, INCRE_CLASSES,
@@ -707,11 +707,11 @@ def ACL(args):
 
                 if torch.cuda.is_available():
                     model_old.cuda()
-                
-                    classifer_old.cuda()
-                
 
-                logger.cprint('*******************Start Re-align Base *******************')    
+                    classifer_old.cuda()
+
+
+                logger.cprint('*******************Start Re-align Base *******************')
                 # Re-align the base model
                 AIRMODEL= AIR(backbone_output=128, backbone=model_old, buffer_size=5000, gamma=1, device=torch.device("cuda"), dtype=torch.double, linear=GeneralizedARM)
                 with torch.no_grad():
@@ -742,7 +742,7 @@ def ACL(args):
                             ptclouds = ptclouds.cuda()
                             labels = labels.cuda()
 
-                
+
                         logits_cls=AIRMODEL(ptclouds)
 
                         # 　Compute predictions
@@ -755,8 +755,8 @@ def ACL(args):
                 accuracy, mIoU, iou_perclass = metric_evaluate(pred_total, gt_total, NUM_BASE_CLASSES + 1, NUM_ALL_CLASSES,
                                                             'eval_Base', BASE_CLASSES, logger, args.dataset)
                 logger.cprint('===== Accuracy: %f | mIoU: %f =====\n' % (accuracy, mIoU))
-                logger.cprint('*******************End Evaluate Re-align Base *******************')   
-            
+                logger.cprint('*******************End Evaluate Re-align Base *******************')
+
             logger.cprint('*******************Start of Training the Incre Model*******************')
             AIRMODEL_OLD =AIRMODEL
             all_uncertain_values = []
@@ -776,7 +776,7 @@ def ACL(args):
                     # labels = torch.where(labels == 0, 0, labels + int(NUM_BASE_CLASSES))
                     # #打印labels的唯一值
                     # print('labels:',labels.unique())
-                    #ptclouds B,D,N  pred_old B,C,N 
+                    #ptclouds B,D,N  pred_old B,C,N
                     #index_probs [B×N, k_probs, C] uncertain_old [B×N] uncertain_knn [B×N, k_probs, 1]
                     # Uncertainty-aware Pseudo-label Generation -> Mixed Labels
                     # Existing code for context
@@ -796,7 +796,7 @@ def ACL(args):
                     # Compute and log uncertain points ratio
                     uncertain_ratio = (uncertain_old > args.uncertain_t).float().mean().item()
                     logger.cprint(f'Batch {i}: Uncertain points ratio: {uncertain_ratio:.4f} (threshold: {args.uncertain_t})')
-                    
+
 
                     # Reshape uncertain_knn and index_probs
                     uncertain_knn = uncertain_knn.reshape(uncertain_old.shape[0], pred_old.shape[2], -1)[:, :, 1:]
@@ -826,7 +826,7 @@ def ACL(args):
                     # Rest of the code can continue as is
                     labels_new_cls = labels_new
 
-                  
+
                     for k in range(index_probs.shape[2]):
                         if (labels_new_cls==0).long().sum([0, 1]) >= 1:
                             if k == 0:
@@ -848,11 +848,11 @@ def ACL(args):
                     AIRMODEL.fit(ptclouds, labels_new_cls, ignore_index=0)
                     # if i>=2:
                     #     break
-  
+
                 AIRMODEL.update()
-            
+
             logger.cprint('*******************End of Training the Incre Model*******************')
-            
+
             if step==STEP-1:
                 logger.cprint('*******************Start of eval the overall Model*******************')
                 if args.dataset == 's3dis':
@@ -885,7 +885,7 @@ def ACL(args):
                                             pc_augm=False, pc_augm_config=None)
 
                 TEST_LOADER = DataLoader(TEST_DATASET, batch_size=args.batch_size, num_workers=args.n_workers, shuffle=False,
-                                        drop_last=True)      
+                                        drop_last=True)
                 #TEST_LOADER 没有背景类的标签而且是从1开始的 s3dis是1到13，scannet是1到21
                 pred_total = []
                 gt_total = []
@@ -893,9 +893,9 @@ def ACL(args):
                     for i, (_, ptclouds, labels) in enumerate(TEST_LOADER):
                         # print('labels:',labels.unique())
                         labels = labels-int(1)
-                        # print('labels:',labels.unique()) 
+                        # print('labels:',labels.unique())
                         gt_total.append(labels.detach())
-                        
+
 
                         if torch.cuda.is_available():
                             ptclouds = ptclouds.cuda()
@@ -907,7 +907,7 @@ def ACL(args):
                         #logits_cls 是B*N,C 我要去掉第一个背景类
 
                         logits_cls=logits_cls[:,1:]
-                
+
                         # 　Compute predictions
                         _, preds = torch.max(logits_cls.detach(), dim=1, keepdim=False)
                         pred_total.append(preds.cpu().detach())
@@ -919,11 +919,11 @@ def ACL(args):
 
 
                 accuracy, mIoU, iou_perclass, base_mIoU, incre_mIoU = metric_evaluate_test(
-                    pred_total, gt_total, len(TEST_CLASSES), TEST_CLASSES, logger, args.dataset, 
+                    pred_total, gt_total, len(TEST_CLASSES), TEST_CLASSES, logger, args.dataset,
                     base_classes=BASE_CLASSES, incre_classes=INCRE_CLASSES
                 )
 
-                logger.cprint('===== [Test]: Accuracy: %f | mIoU: %f | Base mIoU: %f | Incre mIoU: %f =====\n' % 
+                logger.cprint('===== [Test]: Accuracy: %f | mIoU: %f | Base mIoU: %f | Incre mIoU: %f =====\n' %
                             (accuracy, mIoU, base_mIoU, incre_mIoU))
                 write_acl_result_summary(
                     args.log_dir, args, step, TEST_CLASSES, BASE_CLASSES, INCRE_CLASSES,

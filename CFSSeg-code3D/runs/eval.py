@@ -86,13 +86,13 @@ def metric_evaluate2(predicted_label, gt_label, NUM_CLASS, class_id, logger, dat
         mean_IoU = np.sum(IoU_list[1:]) / (len(class_id) - 1) # Exclude the ignore labels
     else:
         mean_IoU = np.sum(IoU_list) / len(class_id)
-        
+
     # 计算基类和增量类的平均mIoU
     base_mIoU, incre_mIoU = None, None
 
     print('base_classes',base_classes)
     print('incre_classes',incre_classes)
-    
+
     if base_classes is not None and incre_classes is not None:
         # 计算基类的平均mIoU
         base_indices = [cls_idx for cls_idx in range(NUM_CLASS) if cls_idx in base_classes]
@@ -101,7 +101,7 @@ def metric_evaluate2(predicted_label, gt_label, NUM_CLASS, class_id, logger, dat
         base_IoUs = [IoU_list[i] for i in base_indices]
         base_mIoU = np.mean(base_IoUs) if base_IoUs else 0.0
         logger.cprint(f'Base Classes mIoU: {base_mIoU:.4f}')
-        
+
         # 计算增量类的平均mIoU
         incre_indices = [cls_idx for cls_idx in range(NUM_CLASS) if cls_idx in incre_classes]
         incre_IoUs = [IoU_list[i] for i in incre_indices]
@@ -193,11 +193,11 @@ def eval(args):
         pred_total = torch.stack(pred_total, dim=0).view(-1, args.pc_npts)
         gt_total = torch.stack(gt_total, dim=0).view(-1, args.pc_npts)
         accuracy, mIoU, iou_perclass, base_mIoU, incre_mIoU = metric_evaluate2(
-            pred_total, gt_total, len(TEST_CLASSES), TEST_CLASSES, logger, args.dataset, 
+            pred_total, gt_total, len(TEST_CLASSES), TEST_CLASSES, logger, args.dataset,
             base_classes=BASE_CLASSES, incre_classes=INCRE_CLASSES
         )
 
-        logger.cprint('===== [Test]: Accuracy: %f | mIoU: %f | Base mIoU: %f | Incre mIoU: %f =====\n' % 
+        logger.cprint('===== [Test]: Accuracy: %f | mIoU: %f | Base mIoU: %f | Incre mIoU: %f =====\n' %
                     (accuracy, mIoU, base_mIoU, incre_mIoU))
     else:
         TEST_DATASET = MyTestDataset_Joint(args.data_path, TEST_CLASSES, TOTAL_STEP, test_set=TEST_SET,
@@ -234,9 +234,9 @@ def eval(args):
         gt_total = torch.stack(gt_total, dim=0).view(-1, args.pc_npts)
 
         accuracy, mIoU, iou_perclass, base_mIoU, incre_mIoU = metric_evaluate2(
-            pred_total, gt_total, len(TEST_CLASSES), TEST_CLASSES, logger, args.dataset, 
+            pred_total, gt_total, len(TEST_CLASSES), TEST_CLASSES, logger, args.dataset,
             base_classes=BASE_CLASSES, incre_classes=INCRE_CLASSES
         )
 
-        logger.cprint('===== [Test]: Accuracy: %f | mIoU: %f | Base mIoU: %f | Incre mIoU: %f =====\n' % 
+        logger.cprint('===== [Test]: Accuracy: %f | mIoU: %f | Base mIoU: %f | Incre mIoU: %f =====\n' %
                     (accuracy, mIoU, base_mIoU, incre_mIoU))

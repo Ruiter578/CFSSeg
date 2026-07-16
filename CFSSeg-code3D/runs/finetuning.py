@@ -390,16 +390,16 @@ def finetuning(args):
             logger.cprint('*******************Training the Model on Incremental Classes: %d Classes | Total %d Tasks | Step %d'
                           '*******************' % (len(INCRE_CLASSES), STEP, step))
 
-      
+
             # Train the model for incremental classes: step > 0 and tasks == 2
             model_new = DGCNNSeg(args)
-            classifer_new = Classifer(num_classes=INCRE+ 1) 
+            classifer_new = Classifer(num_classes=INCRE+ 1)
             if step==1:
                 model_new = load_trained_checkpoint(model_new, args.base_model_checkpoint_path,
-                                                'end_base_model_checkpoint.tar')  
+                                                'end_base_model_checkpoint.tar')
             else:
                 model_new = load_trained_checkpoint(model_new, args.base_model_checkpoint_path,
-                                                'end_incre_step_'+str(step-1)+'_model_checkpoint.tar')  
+                                                'end_incre_step_'+str(step-1)+'_model_checkpoint.tar')
             print('New model:\n', model_new)
 
             if torch.cuda.is_available():
@@ -510,4 +510,4 @@ def finetuning(args):
             save_train_checkpoint(model_new, args.log_dir, 'end_incre_step_'+str(step)+'_model')
             save_classifer_checkpoint(classifer_new, args.log_dir, 'end_incre_step_'+str(step)+'_model')
 
-            WRITER.close()           
+            WRITER.close()

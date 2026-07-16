@@ -322,7 +322,7 @@ def train(args):
                     pc_relations_old, logits_old = model_old(ptclouds, relation=True)
                     logits_old_cls = classifer_old(logits_old)
                     pred_old = F.softmax(logits_old_cls, dim=1)
-                    #ptclouds B,D,N  pred_old B,C,N 
+                    #ptclouds B,D,N  pred_old B,C,N
                     #index_probs [B×N, k_probs, C] uncertain_old [B×N] uncertain_knn [B×N, k_probs, 1]
 
                     # Uncertainty-aware Pseudo-label Generation -> Mixed Labels
@@ -333,7 +333,7 @@ def train(args):
                     #然后被重塑为[B, N]  [B, N, k_probs-1]
                     _, k_probs, _ = index_probs.shape
                     index_probs = (torch.argmax(index_probs[:, 1:, :], dim=-1)).reshape(-1, pred_old.shape[2], k_probs - 1)
-                    #[B,N,k_probs-1]  
+                    #[B,N,k_probs-1]
                     index_probs = torch.where(uncertain_knn > args.uncertain_t, -int(1), index_probs)
 
                     labels_new_cls = labels_new

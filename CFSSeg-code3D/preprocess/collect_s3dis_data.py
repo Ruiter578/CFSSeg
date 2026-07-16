@@ -92,5 +92,3 @@ if __name__ == '__main__':
                 collect_point_label(anno_path, os.path.join(SAVE_PATH, out_filename))
             except:
                 print(anno_path, 'ERROR!!')
-
-

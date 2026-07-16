@@ -47,5 +47,3 @@ class RandomBuffer(torch.nn.Linear, Buffer):
     def forward(self, X: torch.Tensor) -> torch.Tensor:
         X = X.to(self.weight)
         return self.activation(super().forward(X))
-
-

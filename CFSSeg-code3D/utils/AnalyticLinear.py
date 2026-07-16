@@ -27,12 +27,12 @@ class AnalyticLinear(torch.nn.Linear, metaclass=ABCMeta):
     @torch.no_grad()
     def forward(self, X: torch.Tensor) -> torch.Tensor:
         X = X.to(self.weight)
- 
+
         return X @ self.weight
 
     @property
     def in_features(self) -> int:
-      
+
         return self.weight.shape[0]
 
     @property
@@ -40,7 +40,7 @@ class AnalyticLinear(torch.nn.Linear, metaclass=ABCMeta):
         return self.weight.shape[1]
 
     def reset_parameters(self) -> None:
-    
+
         self.weight = torch.zeros((self.weight.shape[0], 0)).to(self.weight)
 
     @abstractmethod
@@ -91,14 +91,14 @@ class RecursiveLinear(AnalyticLinear):
 
 
         K = torch.inverse(torch.eye(X.shape[0]).to(X) + X @ self.R @ X.T)
-       
+
         self.R -= self.R @ X.T @ K @ X @ self.R
-     
+
         self.weight += self.R @ X.T @ (Y - X @ self.weight)
 
 
 class GeneralizedARM(AnalyticLinear):
-    
+
 
     def __init__(
         self,
@@ -179,4 +179,3 @@ class GeneralizedARM(AnalyticLinear):
         C = self.C.mul(cnt_inv[None, :])
 
         self.weight = torch.inverse(A) @ C
-

@@ -72,4 +72,4 @@ CUDA_VISIBLE_DEVICES=$GPU_ID python main.py "${args[@]}" --cvfold $SPLIT --tasks
 
 TASKS='15-5'
 MODEL_CHECKPOINT='./log_scannet/log_acl_scannet_cv1_tasks15-5'
-CUDA_VISIBLE_DEVICES=$GPU_ID python main.py "${args[@]}" --cvfold $SPLIT --tasks "$TASKS" --model_checkpoint_path "$MODEL_CHECKPOINT" 
+CUDA_VISIBLE_DEVICES=$GPU_ID python main.py "${args[@]}" --cvfold $SPLIT --tasks "$TASKS" --model_checkpoint_path "$MODEL_CHECKPOINT"

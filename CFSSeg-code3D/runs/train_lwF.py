@@ -447,9 +447,9 @@ def train_LwF(args):
                 classifer_old.classifer_weights = nn.Parameter(classifer_old.classifer_weights[1:, :, :], requires_grad=False)
 
                 classifer_weights_old = torch.empty_like(classifer_old.classifer_weights).copy_(classifer_old.classifer_weights.detach())
-                classifer_new = Classifer(num_classes=NUM_BASE_CLASSES+1, 
+                classifer_new = Classifer(num_classes=NUM_BASE_CLASSES+1,
                                           initial_old_classifer_weights=classifer_weights_old,save_backgroudclass=True)
-                
+
 
                 model_new = DGCNNSeg(args)
 
@@ -479,7 +479,7 @@ def train_LwF(args):
             # 冻结旧模型和分类器参数
             for param in model_old.parameters():
                 param.requires_grad = False
-            
+
             for param in classifer_old.parameters():
                 param.requires_grad = False
 
@@ -518,12 +518,12 @@ def train_LwF(args):
                     #     labels_new = torch.where(labels==0,labels,labels + int(NUM_BASE_CLASSES) + (INCRE * (step)) - 1)
                     # else:
                     labels_new = torch.where(labels==0,labels,labels + int(NUM_BASE_CLASSES) + (INCRE * (step)) - 2)
-                  
+
                     # print('labels_new:',labels_new.unique())
                     # print('NUM_BASE_CLASSES+step-1:',NUM_BASE_CLASSES+step-1)
                     loss_cls = F.cross_entropy(logits_new_cls, labels_new.cuda(), ignore_index=0)
 
-          
+
 
                     # LwF蒸馏损失，使用温度参数T=2
                     T = 5
@@ -534,11 +534,11 @@ def train_LwF(args):
                     # else:
                     output_new_logits = F.softmax(logits_new_cls.transpose(1, 2)[:, :, :NUM_BASE_CLASSES+(step-1)] / T, dim=-1)
                     output_old_logits = F.softmax(logits_old_cls.transpose(1, 2)[:, :, :] / T, dim=-1)
-                
+
                     loss_lwf_loss = ((output_old_logits.mul(-1 * torch.log(output_new_logits))).sum(-1)).mean() * T * T
                     del labels, logits_new, logits_old, logits_old_cls
                     print('loss_lwf_loss:',loss_lwf_loss)
-                    print('loss_cls:',loss_cls) 
+                    print('loss_cls:',loss_cls)
                     loss_incre = loss_cls + loss_lwf_loss
                     # loss_incre = loss_cls
                     # 反向传播和优化
@@ -655,4 +655,3 @@ def train_LwF(args):
             save_classifer_checkpoint(classifer_new, args.log_dir, 'end_incre_step_'+str(step)+'_model')
 
             WRITER.close()
-

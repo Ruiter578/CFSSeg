@@ -125,7 +125,7 @@ class DGCNNSeg(nn.Module):
         #[N, k_probs, C] [N] [N, k_probs, 1]
 
 
- 
+
 # Define the final output layer for different situations
 class Classifer(nn.Module):
     def __init__(self, num_classes, initial_old_classifer_weights=None,save_backgroudclass=False):
@@ -163,4 +163,3 @@ class Classifer(nn.Module):
         classifer_weights = self.classifer_weights.detach()
         classifer_weights = torch.cat((old_weights[1:, :, :], classifer_weights[1:, :, :]), dim=0)
         return classifer_weights.cuda()
-

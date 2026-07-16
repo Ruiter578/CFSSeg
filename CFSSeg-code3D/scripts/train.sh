@@ -30,7 +30,7 @@ UNCERTAIN_T_VALUES=(0.002)
 for UNCERTAIN_T in "${UNCERTAIN_T_VALUES[@]}"
 do
     echo "Running with UNCERTAIN_T = $UNCERTAIN_T"
-    
+
     args=(--phase 'ACL' --dataset "${DATASET}"
           --data_path  "$DATA_PATH" --save_path "$SAVE_PATH"
           --pc_npts $NUM_POINTS --pc_attribs "$PC_ATTRIBS" --pc_augm
@@ -159,7 +159,7 @@ for UNCERTAIN_T in 0.0005; do
 
     # TASKS='15-5'
     # BASE_MODEL_PATH='./log_scannet/log_acl_scannet_cv1_tasks15-5'
-    # CUDA_VISIBLE_DEVICES=$GPU_ID python main.py "${args[@]}" --cvfold $SPLIT --tasks "$TASKS" --base_model_checkpoint_path "$BASE_MODEL_PATH" 
+    # CUDA_VISIBLE_DEVICES=$GPU_ID python main.py "${args[@]}" --cvfold $SPLIT --tasks "$TASKS" --base_model_checkpoint_path "$BASE_MODEL_PATH"
 
     TASKS='15-1'
     BASE_MODEL_PATH='./log_scannet/log_acl_scannet_cv1_tasks15-1'

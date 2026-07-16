@@ -13,7 +13,7 @@ MLP_WIDTHS='[512, 256]'
 K=20
 
 args=(--phase 'jointeval'  --dataset "${DATASET}"
-      --data_path  "$DATA_PATH"  
+      --data_path  "$DATA_PATH"
       --pc_npts $NUM_POINTS --pc_attribs "$PC_ATTRIBS"
       --edgeconv_widths "$EDGECONV_WIDTHS" --dgcnn_k $K --dgcnn_mlp_widths "$MLP_WIDTHS")
 
@@ -60,7 +60,7 @@ MLP_WIDTHS='[512, 256]'
 K=20
 #
 args=(--phase 'jointeval'  --dataset "${DATASET}"
-      --data_path  "$DATA_PATH"  
+      --data_path  "$DATA_PATH"
       --pc_npts $NUM_POINTS --pc_attribs "$PC_ATTRIBS"
       --edgeconv_widths "$EDGECONV_WIDTHS" --dgcnn_k $K --dgcnn_mlp_widths "$MLP_WIDTHS")
 

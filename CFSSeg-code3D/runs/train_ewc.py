@@ -533,29 +533,29 @@ def train_EWC(args):
                 model_old = DGCNNSeg(args)
                 model_old = load_trained_checkpoint(model_old, args.base_model_checkpoint_path,
                                                     'end_base_model_checkpoint.tar')  # 加载基础模型
-                
+
                 # 初始化新模型
                 model_new = DGCNNSeg(args)
                 classifer_new = Classifer(num_classes=INCRE + 1) # 添加背景类
                 model_new = load_trained_checkpoint(model_new, args.base_model_checkpoint_path,
                                                     'end_base_model_checkpoint.tar')  # 加载基础模型
-                
-              
+
+
             else:
                 # 初始化旧模型
                 model_old = DGCNNSeg(args)
                 model_old = load_trained_checkpoint(model_old, args.base_model_checkpoint_path,
                                                     'end_incre_step_' + str(step - 1) + '_model_checkpoint.tar')  # 加载上一步模型
-                
+
                 # 初始化新模型
                 model_new = DGCNNSeg(args)
-                
-              
+
+
                 classifer_new = Classifer(num_classes=INCRE + 1)
-                
+
                 model_new = load_trained_checkpoint(model_new, args.base_model_checkpoint_path,
                                                     'end_incre_step_' + str(step - 1) + '_model_checkpoint.tar')  # 加载上一步模型
-                
+
             # 获取EWC正则化器
             new_regularizer = get_regularizer(model_new, model_old, 'cuda:0', Old_Regularizer.state_dict())
 
@@ -595,11 +595,11 @@ def train_EWC(args):
                     # 反向传播和优化器更新
                     optimizer_incre.zero_grad()
                     loss_incre.backward()
-                    
+
                     # 更新正则化器并应用EWC惩罚
                     new_regularizer.update()
                     l_reg = 1.0 * new_regularizer.penalty()
-                    if l_reg != 0.0: 
+                    if l_reg != 0.0:
                         l_reg.backward()
                     optimizer_incre.step()
 
@@ -684,7 +684,7 @@ def train_EWC(args):
             logger.cprint('*******************Model Saved*******************')
             save_train_checkpoint(model_new, args.log_dir, 'end_incre_step_'+str(step)+'_model')
             save_classifer_checkpoint(classifer_new, args.log_dir, 'end_incre_step_'+str(step)+'_model')
-            
+
             # 更新旧正则化器为当前正则化器，用于下一步增量学习
             Old_Regularizer = new_regularizer
 

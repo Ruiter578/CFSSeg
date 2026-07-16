@@ -302,7 +302,7 @@ def ACL(args):
 
                 # 调用fit和update方法
                 recursive_linear.fit(features, labels_new_cls)
-           
+
 
                 # 记录损失
                 logger.cprint('Epoch: %d, Batch: %d, Loss: %.4f' % (epoch, batch_idx, loss.item()))

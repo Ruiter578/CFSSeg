@@ -45,13 +45,13 @@ def metric_evaluate(predicted_label, gt_label, NUM_CLASS, class_id, logger, data
         mean_IoU = np.sum(IoU_list[1:]) / (len(class_id) - 1) # Exclude the ignore labels
     else:
         mean_IoU = np.sum(IoU_list) / len(class_id)
-        
+
     # 计算基类和增量类的平均mIoU
     base_mIoU, incre_mIoU = None, None
 
     print('base_classes',base_classes)
     print('incre_classes',incre_classes)
-    
+
     if base_classes is not None and incre_classes is not None:
         # 计算基类的平均mIoU
         base_indices = [cls_idx for cls_idx in range(NUM_CLASS) if cls_idx in base_classes]
@@ -60,7 +60,7 @@ def metric_evaluate(predicted_label, gt_label, NUM_CLASS, class_id, logger, data
         base_IoUs = [IoU_list[i] for i in base_indices]
         base_mIoU = np.mean(base_IoUs) if base_IoUs else 0.0
         logger.cprint(f'Base Classes mIoU: {base_mIoU:.4f}')
-        
+
         # 计算增量类的平均mIoU
         incre_indices = [cls_idx for cls_idx in range(NUM_CLASS) if cls_idx in incre_classes]
         incre_IoUs = [IoU_list[i] for i in incre_indices]
@@ -103,7 +103,7 @@ def eval(args):
                                 pc_augm=False, pc_augm_config=None)
 
     TEST_LOADER = DataLoader(TEST_DATASET, batch_size=args.batch_size, num_workers=args.n_workers, shuffle=False,
-                            drop_last=True)      
+                            drop_last=True)
     #TEST_LOADER 没有背景类的标签而且是从1开始的 s3dis是1到13，scannet是1到21
     model = DGCNNSeg(args)
     model = load_trained_checkpoint(model, args.model_checkpoint_path, name=f'end_incre_step_{TOTAL_STEP-1}_model_checkpoint.tar')
@@ -124,7 +124,7 @@ def eval(args):
                 classifer_incre = load_trained_checkpoint(classifer_incre, args.model_checkpoint_path, name=f'end_incre_step_{step}_model_classifer_checkpoint.tar')
                 classifer_list.append(classifer_incre)
         #用enroll_weights将classifer_list中的classifer进行融合
-     
+
         for i in range(0, len(classifer_list)):
             # classifer_list[i-1].classifer_weights = torch.empty_like(classifer_list[i-1].classifer_weights).copy_(classifer_list[i-1].classifer_weights.detach())
             if i==0:
@@ -138,10 +138,10 @@ def eval(args):
         # classifer=Classifer(num_classes=len(BASE_CLASSES)+1)
         # classifer=load_trained_checkpoint(classifer, args.model_checkpoint_path, name=f'end_base_model_classifer_checkpoint.tar')
         # classifer.classifer_weights=nn.Parameter(classifer.classifer_weights[1:,:,:],requires_grad=False)
-   
-        
-        
-       
+
+
+
+
 
 
     model.cuda()
@@ -151,7 +151,7 @@ def eval(args):
     with torch.no_grad():
         for i, (_, ptclouds, labels) in enumerate(TEST_LOADER):
             labels = labels - int(1)
-            
+
             # print('labels',labels.unique())
             gt_total.append(labels.detach())
 
@@ -176,9 +176,9 @@ def eval(args):
     gt_total = torch.stack(gt_total, dim=0).view(-1, args.pc_npts)
     # 修改调用部分，在eval函数中:
     accuracy, mIoU, iou_perclass, base_mIoU, incre_mIoU = metric_evaluate(
-        pred_total, gt_total, len(TEST_CLASSES), TEST_CLASSES, logger, args.dataset, 
+        pred_total, gt_total, len(TEST_CLASSES), TEST_CLASSES, logger, args.dataset,
         base_classes=BASE_CLASSES, incre_classes=INCRE_CLASSES
     )
 
-    logger.cprint('===== [Test]: Accuracy: %f | mIoU: %f | Base mIoU: %f | Incre mIoU: %f =====\n' % 
+    logger.cprint('===== [Test]: Accuracy: %f | mIoU: %f | Base mIoU: %f | Incre mIoU: %f =====\n' %
                 (accuracy, mIoU, base_mIoU, incre_mIoU))

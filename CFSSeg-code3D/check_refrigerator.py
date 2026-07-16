@@ -8,21 +8,21 @@ def check_dataset():
     if not os.path.exists(class2scans_file):
         print(f"错误：找不到文件 {class2scans_file}")
         return
-    
+
     with open(class2scans_file, 'rb') as f:
         class2scans = pickle.load(f)
-    
+
     # 检查所有类别的场景数量
     print("所有类别的场景数量:")
     for class_id, scenes in class2scans.items():
         print(f"类别 {class_id}: {len(scenes)} 个场景")
-    
+
     # 检查数据目录中的文件
     data_dir = 'datasets/ScanNet/blocks_bs1_s1/data'
     if os.path.exists(data_dir):
         npy_files = [f for f in os.listdir(data_dir) if f.endswith('.npy')]
         print(f"\n数据目录中的.npy文件数量: {len(npy_files)}")
-        
+
         # 随机检查几个文件中的标签分布
         print("\n随机检查几个文件中的标签分布:")
         for i in range(min(5, len(npy_files))):
@@ -40,4 +40,4 @@ def check_dataset():
         print(f"\n错误：找不到数据目录 {data_dir}")
 
 if __name__ == '__main__':
-    check_dataset() 
+    check_dataset()
