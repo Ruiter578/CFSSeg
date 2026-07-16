@@ -77,6 +77,8 @@ if __name__ == '__main__':
     parser.add_argument('--save_path', type=str, default='./log_s3dis/',
                         help='Directory to the save log and checkpoints')
     parser.add_argument('--eval_interval', type=int, default=3, help='epoch interval to evaluate model')
+    parser.add_argument('--start_step', type=int, default=0,
+                        help='ACL start step: 0 runs base+incremental from scratch; 1 resumes from an existing base model')
 
     #optimization
     parser.add_argument('--batch_size', type=int, default=32, help='Number of samples/tasks in one batch')

@@ -80,7 +80,10 @@ CFSSeg-code3D/.mypy_cache/
 CFSSeg-code3D/*.whl
 data_root_3d/
 
-# 3D experiment outputs: keep the directory placeholder only.
+# 3D experiment outputs: ignore heavy artifacts, keep lightweight provenance/results.
 checkpoints_3d/**
 !checkpoints_3d/
+!checkpoints_3d/**/
 !checkpoints_3d/.gitkeep
+!checkpoints_3d/**/run_manifest.json
+!checkpoints_3d/**/result_summary*.json

@@ -14,6 +14,7 @@ from dataloaders.loader import MyTestDataset
 from utils.checkpoint_util import save_train_checkpoint, load_trained_checkpoint, save_classifer_checkpoint
 from utils.AnalyticLinear import RecursiveLinear,GeneralizedARM
 from utils.Buffer import RandomBuffer
+from utils.result_io import write_acl_manifest, write_acl_result_summary
 
 class AIR(torch.nn.Module):
     def __init__(
@@ -228,9 +229,14 @@ def ACL(args):
     STEP = int(len(INCRE_CLASSES) / INCRE) + 1 # Total steps
     CLASS2SCAN = DATASET.class2scans
 
-    # If you already have a trained base model, put the base checkpoints in the same folder, and you only \
-    # need to modified the range(0, STEP) to range(1, STEP) for incremental model training ...
-    for step in range(1, STEP): # 0 for base step, 1~STEP for incre step
+    START_STEP = int(getattr(args, 'start_step', 0))
+    if START_STEP not in (0, 1) or START_STEP >= STEP:
+        raise ValueError('start_step must be 0 or 1 and smaller than total steps; got %d' % START_STEP)
+
+    write_acl_manifest(args.log_dir, args, BASE_CLASSES, INCRE_CLASSES, STEP)
+
+    # Set --start_step 1 if a trained base model already exists and only incremental steps are needed.
+    for step in range(START_STEP, STEP): # 0 for base step, 1~STEP for incre step
         SAMPLE_CLASS = BASE_CLASSES.copy()  # intital as old class
         if step == 0: # Train the model for base classes
             CLASSES = BASE_CLASSES
@@ -672,6 +678,10 @@ def ACL(args):
 
             logger.cprint('===== [Test]: Accuracy: %f | mIoU: %f | Base mIoU: %f | Incre mIoU: %f =====\n' % 
                         (accuracy, mIoU, base_mIoU, incre_mIoU))
+            write_acl_result_summary(
+                args.log_dir, args, step, TEST_CLASSES, BASE_CLASSES, INCRE_CLASSES,
+                accuracy, mIoU, iou_perclass, base_mIoU, incre_mIoU
+            )
             logger.cprint('*******************End of eval the overall Model*******************')
 
             WRITER.close()
@@ -915,10 +925,13 @@ def ACL(args):
 
                 logger.cprint('===== [Test]: Accuracy: %f | mIoU: %f | Base mIoU: %f | Incre mIoU: %f =====\n' % 
                             (accuracy, mIoU, base_mIoU, incre_mIoU))
+                write_acl_result_summary(
+                    args.log_dir, args, step, TEST_CLASSES, BASE_CLASSES, INCRE_CLASSES,
+                    accuracy, mIoU, iou_perclass, base_mIoU, incre_mIoU
+                )
                 logger.cprint('*******************End of eval the overall Model*******************')
                 WRITER.close()
 
 
 
 ##评估的话可以直接在这里写，改那个step就可以了 如果有backbone的话
-
