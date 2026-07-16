@@ -1,0 +1,10 @@
+nohup*
+log_s3dis/
+log_scannet/
+datasets/
+slurm*
+
+__pycache__/
+*.py[cod]
+*$py.class
+

@@ -1,0 +1,91 @@
+{
+  "args": {
+    "base_decay_size": 50,
+    "base_gamma": 0.5,
+    "base_lr": 0.001,
+    "base_model_checkpoint_path": "checkpoints_3d/s3dis/log_acl_s3dis_cv0_tasks8-1",
+    "base_weight_decay": 0.0001,
+    "batch_size": 32,
+    "cvfold": 0,
+    "data_path": "./datasets/S3DIS/blocks_bs1_s1/",
+    "dataset": "s3dis",
+    "dgcnn_k": 20,
+    "dgcnn_mlp_widths": [
+      512,
+      256
+    ],
+    "edgeconv_widths": [
+      [
+        64,
+        64
+      ],
+      [
+        64,
+        64
+      ],
+      [
+        64,
+        64
+      ]
+    ],
+    "eval_interval": 3,
+    "incre_decay_size": 50,
+    "incre_gamma": 0.5,
+    "incre_lr": 0.001,
+    "incre_weight_decay": 0.0001,
+    "joint_decay_size": 50,
+    "joint_gamma": 0.5,
+    "joint_lr": 0.001,
+    "joint_weight_decay": 0.0001,
+    "log_dir": "checkpoints_3d/s3dis/log_acl_s3dis_cv0_tasks8-1",
+    "model_checkpoint_path": null,
+    "n_epochs": 100,
+    "n_workers": 16,
+    "pc_attribs": "xyzrgbXYZ",
+    "pc_augm": true,
+    "pc_augm_jitter": 1,
+    "pc_augm_mirror_prob": 0,
+    "pc_augm_rot": 1,
+    "pc_augm_scale": 0,
+    "pc_in_dim": 9,
+    "pc_npts": 2048,
+    "phase": "ACL",
+    "save_path": "checkpoints_3d/s3dis",
+    "tasks": "8-1",
+    "uncertain_t": 0.0035
+  },
+  "class_split": {
+    "base_classes": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "incremental_classes": [
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "num_base_classes": 8,
+    "num_incremental_classes": 5
+  },
+  "generated_at_utc": "2026-07-16T13:02:27.371626+00:00",
+  "log_files": [
+    "checkpoints_3d/s3dis/log_acl_s3dis_cv0_tasks8-1/tmux_launch_20260715_152951.log"
+  ],
+  "paper_alignment": {
+    "paper_buffer_size": 5000,
+    "paper_gamma": 1,
+    "paper_uncertain_t": 0.0035,
+    "uses_paper_uncertain_t": true
+  },
+  "run_dir": "checkpoints_3d/s3dis/log_acl_s3dis_cv0_tasks8-1",
+  "schema_version": "cfsseg3d.acl_manifest.v1",
+  "source": "extract_acl_results.py"
+}
