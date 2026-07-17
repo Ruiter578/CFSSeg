@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Step1 验证子集与完整测试集</title>
+  <link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+  <h1>Step1 验证子集与完整测试集</h1>
+  <p>目标：看到一个 <code>mIoU</code> 数字时，先问“它在哪些图像、哪些类别上算出来的？”</p>
+
+  <h2>这次代码实际做了什么</h2>
+  <div class="flow">完整 test：VOC <code>val.txt</code> 的 1,449 张图
+  -> 覆盖完整 21 类
+
+step1 val：从 <code>val_cls.txt</code> 挑出“含本步新类 16--20”的图
+  -> 354 张图
+  -> 不是完整 21 类的代表性评估集</div>
+  <p>筛选规则在 <a href="utils/tasks.py">utils/tasks.py</a>。因此，aeroplane、boat、cow、horse 在这 354 张图中各出现 0 次。</p>
+
+  <h2>为什么结果仍显示 IoU=0</h2>
+  <p>指标实现没有把“GT 中不存在”的类别排除，而是在分母加 <code>EPS=1e-6</code>。于是 0/eps 仍是 0，而不是 NaN；随后 <code>Mean IoU</code> 又把这个 0 平均了进去。代码见 <a href="metrics/stream_metrics.py">stream_metrics.py</a>。</p>
+  <div class="warning">所以该 0 不能解读为“模型忘了该类别”。它首先意味着：该类别在当前评估样本中不可被召回率衡量。</div>
+
+  <h2>正确的决策分工</h2>
+  <div class="flow">训练集：拟合参数
+验证集：在不看完整 test 的前提下，淘汰候选
+完整 test：配置冻结后，报告泛化性能</div>
+  <p>当前仓库没有天然的“完整 21 类独立 validation split”。因此 354 张 step1 val 可以作为增量子集诊断，但不能作为完整 mIoU 的唯一排序依据。完整 test 审计可以说明结果，但若反复据它挑参数，也会造成 test-selection bias。</p>
+
+  <h2>快速检验</h2>
+  <p>问题：某类别在评估 GT 中没有像素，而代码使用 <code>TP / (GT + Pred - TP + EPS)</code>。这个类别的 IoU=0 能否证明模型没有预测该类？</p>
+  <button id="answer">显示答案</button><div id="feedback"></div>
+  <p>下一步：把当前八个 checkpoint 的完整 test 审计结果，与这份子集结果并排阅读；再决定是否需要建立真正的全类验证划分。</p>
+</main>
+<script>
+document.getElementById('answer').onclick = () => {
+  document.getElementById('feedback').textContent = '不能。它只证明 TP=0；可能是完全未预测，也可能出现了错误的假阳性。';
+};
+</script>
+</body>
+</html>
