@@ -47,6 +47,14 @@ step0 DeepLab feature learning
    - Does it help the required ensemble-learning narrative?
    - What ablation table would make the claim defensible?
 
+6. **Evidence and stop-loss**
+   - 不预设方法必须独立成为论文级核心创新；真实、稳定、可复现的提升足以支持保留和深入研究。
+   - 验证是否同协议、同 checkpoint、同 seed 语义且控制了关键变量。
+   - 若达到预注册实验次数后提升仍不明显，停止重复扫参与低价值微改。
+   - 回到指标、协议、标签可见性、输入、损失和闭式目标做第一性原理与对抗性审查。
+   - 下一步只能选择针对根因升级或转向更有潜力的路线，并给出能推翻机制假设的实验。
+   - 不得因沉没成本继续弱收益路线，也不得因论文叙事暂不完整而丢弃真实正向证据。
+
 ## Output
 
 Return:
@@ -54,6 +62,8 @@ Return:
 ```text
 Recommendation: accept / revise / reject
 Primary reason:
+Evidence status:
+Stop-loss decision:
 Required code changes:
 Minimal validation experiment:
 Risks:
