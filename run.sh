@@ -39,6 +39,8 @@ RHL_SEED="${RHL_SEED:--1}"
 RHL_STATS="${RHL_STATS:-0}"
 ANALYTIC_TAIL_EPSILON="${ANALYTIC_TAIL_EPSILON:-1e-3}"
 EVALUATION_MODE="${EVALUATION_MODE:-test}"
+TRAIN_EXCLUDE_LIST="${TRAIN_EXCLUDE_LIST:-}"
+VALIDATION_LIST="${VALIDATION_LIST:-}"
 
 DEFAULT_BATCH_SIZE="${DEFAULT_BATCH_SIZE:-32}"
 SPECIAL_BATCH_SIZE="${SPECIAL_BATCH_SIZE:-32}"
@@ -58,6 +60,16 @@ if [[ "$RHL_STATS" == "1" ]]; then
     RHL_STATS_ARG=(--rhl_stats)
 fi
 
+TRAIN_EXCLUDE_LIST_ARG=()
+if [[ -n "$TRAIN_EXCLUDE_LIST" ]]; then
+    TRAIN_EXCLUDE_LIST_ARG=(--train_exclude_list "$TRAIN_EXCLUDE_LIST")
+fi
+
+VALIDATION_LIST_ARG=()
+if [[ -n "$VALIDATION_LIST" ]]; then
+    VALIDATION_LIST_ARG=(--validation_list "$VALIDATION_LIST")
+fi
+
 echo "SegACIL experiment configuration:"
 echo "  model=${MODEL}, air_feature_source=${AIR_FEATURE_SOURCE}"
 echo "  task=${TASK}, setting=${SETTING}, steps=${START_STEP}-${END_STEP}"
@@ -66,6 +78,8 @@ echo "  buffer=${BUFFER}, gamma=${GAMMA}, random_seed=${RANDOM_SEED}"
 echo "  optimizer_lr: backbone=${BACKBONE_LR}, classifier=${CLASSIFIER_LR}"
 echo "  rhl_norm=${RHL_NORM}, rhl_seed=${RHL_SEED}, rhl_stats=${RHL_STATS}"
 echo "  analytic_tail_epsilon=${ANALYTIC_TAIL_EPSILON}, evaluation_mode=${EVALUATION_MODE}"
+echo "  train_exclude_list=${TRAIN_EXCLUDE_LIST:-<none>}"
+echo "  validation_list=${VALIDATION_LIST:-<default task val>}"
 echo "  ckpt=${CKPT:-<none>}, curr_itrs=${CURR_ITRS}"
 
 for ((CURR_STEP=START_STEP; CURR_STEP<=END_STEP; CURR_STEP+=STEP_INCREMENT))
@@ -117,6 +131,8 @@ do
         --rhl_seed "$RHL_SEED" \
         --analytic_tail_epsilon "$ANALYTIC_TAIL_EPSILON" \
         --evaluation_mode "$EVALUATION_MODE" \
+        "${TRAIN_EXCLUDE_LIST_ARG[@]}" \
+        "${VALIDATION_LIST_ARG[@]}" \
         "${RHL_STATS_ARG[@]}" \
         --output_stride "$OUTPUT_STRIDE"
 done

@@ -58,6 +58,7 @@ environment-segacil.yml
 checkpoints/**
 !checkpoints/**/
 !checkpoints/**/sequential/step*/**/*.json
+!Codex_Plans/20260716_clean_validation_protocol/*.json
 data_root/
 
 logs/**

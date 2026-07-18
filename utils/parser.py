@@ -67,6 +67,8 @@ class Config:
     rhl_stats: bool = False
     analytic_tail_epsilon: float = 1e-3
     evaluation_mode: str = 'test'
+    train_exclude_list: Optional[str] = None
+    validation_list: Optional[str] = None
 
     use_pseudo_label: bool = False
     pseudo_label_confidence: float = 0.7
@@ -173,6 +175,18 @@ def get_argparser() -> Config:
         default=Config.evaluation_mode,
         choices=["val", "test", "both"],
         help="dataset split(s) evaluated after an analytic incremental update",
+    )
+    parser.add_argument(
+        "--train_exclude_list",
+        type=str,
+        default=Config.train_exclude_list,
+        help="newline-delimited image ids excluded from every training loader",
+    )
+    parser.add_argument(
+        "--validation_list",
+        type=str,
+        default=Config.validation_list,
+        help="newline-delimited image ids used as the independent validation set",
     )
 
     parser.add_argument("--use_pseudo_label", action='store_true', default=Config.use_pseudo_label, help="is use pseudo label")

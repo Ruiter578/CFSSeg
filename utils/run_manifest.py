@@ -128,6 +128,12 @@ def write_run_manifest(
 
     checkpoint_path = Path(base_checkpoint_path) if base_checkpoint_path else None
     checkpoint_hash = file_sha256(checkpoint_path) if checkpoint_path else None
+    train_exclude_value = getattr(opts, "train_exclude_list", None)
+    validation_value = getattr(opts, "validation_list", None)
+    train_exclude_path = Path(train_exclude_value) if train_exclude_value else None
+    validation_path = Path(validation_value) if validation_value else None
+    train_exclude_hash = file_sha256(train_exclude_path) if train_exclude_path and train_exclude_path.is_file() else None
+    validation_hash = file_sha256(validation_path) if validation_path and validation_path.is_file() else None
     commit = git_commit or current_git_commit()
     args = normalize_for_json(options_to_dict(opts))
     air = {
@@ -138,6 +144,10 @@ def write_run_manifest(
         "output_dir": str(output_path),
         "base_checkpoint_path": str(checkpoint_path) if checkpoint_path else None,
         "base_checkpoint_sha256": checkpoint_hash,
+        "train_exclude_list": str(train_exclude_path) if train_exclude_path is not None else None,
+        "train_exclude_list_sha256": train_exclude_hash,
+        "validation_list": str(validation_path) if validation_path is not None else None,
+        "validation_list_sha256": validation_hash,
     }
     git = {
         "commit": commit,
@@ -194,6 +204,10 @@ def write_run_manifest(
         "rhl_stats": args.get("rhl_stats"),
         "analytic_tail_epsilon": args.get("analytic_tail_epsilon"),
         "evaluation_mode": args.get("evaluation_mode"),
+        "train_exclude_list": str(train_exclude_path) if train_exclude_path is not None else None,
+        "train_exclude_list_sha256": train_exclude_hash,
+        "validation_list": str(validation_path) if validation_path is not None else None,
+        "validation_list_sha256": validation_hash,
         "use_pseudo_label": args.get("use_pseudo_label"),
         "pseudo_label_confidence": args.get("pseudo_label_confidence"),
     }

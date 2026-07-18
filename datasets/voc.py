@@ -7,6 +7,23 @@ from PIL import Image
 from utils.tasks import get_dataset_list, get_tasks
 from utils.parser import Config
 
+
+def read_image_id_list(path, description):
+    if not path:
+        raise ValueError(f"{description} requires a list path.")
+    with open(path, 'r') as handle:
+        image_ids = [line.split()[0] for line in handle if line.split()]
+    if not image_ids:
+        raise ValueError(f"{description} list is empty: {path}")
+    if len(image_ids) != len(set(image_ids)):
+        raise ValueError(f"{description} list contains duplicate image ids: {path}")
+    return image_ids
+
+
+def exclude_image_ids(file_names, excluded_ids):
+    excluded = set(excluded_ids)
+    return [image_id for image_id in file_names if image_id not in excluded]
+
 def voc_cmap(N=256, normalized=False):
     def bitget(byteval, idx):
         return ((byteval & (1 << idx)) != 0)
@@ -63,8 +80,25 @@ class VOCSegmentation(data.Dataset):
         if image_set=='test':
             file_names = open(os.path.join(self.root, 'ImageSets/Segmentation', 'val.txt'), 'r')
             file_names = file_names.read().splitlines()
+        elif image_set == 'tuning_val':
+            file_names = read_image_id_list(
+                opts.validation_list,
+                'Independent validation',
+            )
         else:
             file_names = get_dataset_list('voc', self.task, cil_step, image_set, self.setting)
+            if image_set == 'train' and opts.train_exclude_list:
+                before_count = len(file_names)
+                file_names = exclude_image_ids(
+                    file_names,
+                    read_image_id_list(opts.train_exclude_list, 'Training exclusion'),
+                )
+                print(
+                    f"VOC train exclusion: removed {before_count - len(file_names)} "
+                    f"of {before_count} task-filtered samples"
+                )
+                if not file_names:
+                    raise ValueError("Training exclusion removed all task-filtered VOC samples")
             
         self.images = [os.path.join(image_dir, x + ".jpg") for x in file_names]
         self.masks = [os.path.join(mask_dir, x + ".png") for x in file_names]
@@ -123,4 +157,3 @@ class VOCSegmentation(data.Dataset):
     def decode_target(cls, mask):
         """decode semantic mask to RGB image"""
         return cls.cmap[mask]
-
