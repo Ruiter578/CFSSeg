@@ -47,6 +47,29 @@ if [[ "$AIR_FEATURE_SOURCE" != "decoder" || "$BUFFER" != "8224" || "$GAMMA" != "
     exit 1
 fi
 
+ensure_local_base_checkpoint_links() {
+    local primary_root_real
+    local worktree_root_real
+    local local_step0
+    local primary_step0
+    local checkpoint_name
+
+    primary_root_real="$(cd "$PRIMARY_ROOT" && pwd -P)"
+    worktree_root_real="$(pwd -P)"
+    if [[ "$primary_root_real" == "$worktree_root_real" ]]; then
+        return
+    fi
+
+    local_step0="checkpoints/${BASE_SUBPATH}/voc/15-5/sequential/step0"
+    primary_step0="${primary_root_real}/checkpoints/${BASE_SUBPATH}/voc/15-5/sequential/step0"
+    mkdir -p "$local_step0"
+    for checkpoint_name in final.pth "${MODEL}_voc_15-5_step_0_sequential.pth"; do
+        if [[ ! -e "${local_step0}/${checkpoint_name}" && -f "${primary_step0}/${checkpoint_name}" ]]; then
+            ln -s "${primary_step0}/${checkpoint_name}" "${local_step0}/${checkpoint_name}"
+        fi
+    done
+}
+
 if [[ -n "$REFERENCE_CODE_COMMIT" ]]; then
     code_diff="$(
         git diff --name-only "$REFERENCE_CODE_COMMIT".."$HEAD_AT_LAUNCH" -- \
@@ -59,6 +82,8 @@ if [[ -n "$REFERENCE_CODE_COMMIT" ]]; then
         exit 1
     fi
 fi
+
+ensure_local_base_checkpoint_links
 
 BASE_MANIFEST="${PRIMARY_ROOT}/checkpoints/${BASE_SUBPATH}/voc/15-5/sequential/step0/run_manifest.json"
 BASE_FINAL="${PRIMARY_ROOT}/checkpoints/${BASE_SUBPATH}/voc/15-5/sequential/step0/final.pth"
