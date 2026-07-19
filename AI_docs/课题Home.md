@@ -1,6 +1,6 @@
 # SegACIL / CFSSeg 课题 Home
 
-> 最后更新：2026-06-25
+> 最后更新：2026-07-19
 > 用途：本文件作为本课题给 Claude Code / Codex / 后续人工接手时的优先入口文档。做实验、改代码、写论文前，先读这里，再读对应的 `Codex_Plans/PLAN.md` 和 `AI_docs/idea构思与实验设计`。
 
 ## 0. 协作与维护规则
@@ -18,6 +18,7 @@
 3. V3+ golden replay 已精确复现 `Mean IoU=0.7035645831`，当前没有必须继续做的 V3+ 验证实验或代码调整。
 4. 后续主线应从 `main` 新开 feature 分支，集中推进 RHL 五方法和自适应伪标签阈值；历史 `SegACIL_deeplabv3plus` worktree 只作为追溯现场保留。
 5. 项目级 Codex 体系已建立：`AGENTS.md`、`.codex/`、`.agents/skills/` 是后续 agent 任务的优先入口。
+6. 自适应伪标签 matched-global 六组机制实验已完成：`artifact_class` 相对同总体分位点全局阈值仅 `+0.0020 pp`，未达到 `+0.1 pp` 门槛；停止 hard classwise threshold 扫参，保留高覆盖伪标签信号并转向可靠性加权 C-RLS。
 
 ## 1. 课题背景
 
@@ -244,6 +245,38 @@ step2+:
 
 结论：按结项指标看，当前 `15-5 sequential` 已超过 65.9% 单模型目标和 67.0% 集成系统目标。V3+ 主线化后，最佳 all mIoU 已达到约 70.36%。但论文发表仍需要方法改进、消融、统计和故事线，而不是只交复现或架构替换结果。
 
+### 6.2.1 自适应伪标签阈值阶段性结果
+
+截至 2026-07-19，`feature/adaptive-pseudo-label` 已完成 `15-5 overlap/disjoint step1` 的 Phase A、Phase B、三 seed 配对和 matched-global 六组机制判别。overlap 核心结果使用同一个 step0：
+
+```text
+20260627_pseudo_15-5_overlap_batchclass_q0p7_seed1_bs32
+```
+
+当前同协议关键结果：
+
+| 策略 | old mIoU | new mIoU | all mIoU | 备注 |
+|---|---:|---:|---:|---|
+| `off` | 79.12 | 42.12 | 70.31 | 无伪标签 |
+| `fixed0.6` | 79.68 | 42.28 | 70.77 | 当前最强 fixed baseline |
+| `batch_class q0.1` | 79.68 | 42.27 | 70.77 | 接近但未超过 fixed0.6 |
+| `artifact q0.005` | 79.72 | 42.29 | 70.81 | 当前最强 adaptive 单点 |
+| `artifact q0.01` | 79.72 | 42.29 | 70.81 | 与 q0.005 基本并列 |
+
+三 seed 的正式机制结论：
+
+| 对比 | overlap 均值（pp） | disjoint 均值（pp） | 六组均值（pp） |
+|---|---:|---:|---:|
+| `artifact_class - fixed0.6` | +0.0395 | +0.0330 | +0.0362 |
+| `artifact_class - matched-global` | +0.0041 | -0.0001 | +0.0020 |
+
+当前结论：伪标签及降低总体阈值带来的高覆盖率值得保留，但类别特异 hard threshold 的增益在 matched-global 控制后几乎归零，只有预注册 `+0.1 pp` 门槛的约 2%。不再继续 q、`min_conf` 或 margin 微调；先完成 raw-mask reliability audit，再把连续 confidence/margin 作为 sample weight 引入 C-RLS。
+
+完整复盘、六组机制证据和最新实施规格当前维护在
+`feature/adaptive-pseudo-label` 分支的
+`AI_docs/idea构思与实验设计/自适应伪标签阈值/7月新篇/` 目录；在该功能分支合并回
+`main` 前，不应把这些路径误认为主分支已经具备的文件。
+
 ### 6.3 当前脚本状态
 
 当前 `run.sh` 是统一入口，核心变量为：
@@ -294,7 +327,7 @@ AGENTS.md
 
 ## 7. 后续计划精华版
 
-当前版本按 2026-06-25 的状态维护。V3+ 已完成主线融合，后续压缩推进重点是 RHL 五方法、自适应伪标签阈值、必要的集成系统验证和论文故事线收敛。
+当前版本按 2026-07-19 的状态维护。V3+ 已完成主线融合；伪标签 hard classwise threshold 已触发 stop-loss。后续压缩推进重点是 RHL 五方法、可靠性加权伪标签、必要的集成系统验证和论文故事线收敛。
 
 ### 第一优先级：RHL 归一化
 
@@ -306,9 +339,9 @@ AGENTS.md
 
 ### 第二优先级：自适应伪标签阈值
 
-目标：把固定 `pseudo_label_confidence=0.7` 改成 batch-level 或 class-wise adaptive threshold，主要验证 `15-5 disjoint` / `15-5 overlap`。
+目标：保留高覆盖伪标签对 semantic drift 的修复作用，把二值 hard selection 升级为连续可靠性进入 C-RLS 解析目标，主要验证 `15-5 disjoint` / `15-5 overlap`，通过机制门槛后再对齐 `15-1 overlap`。
 
-注意：sequential 下旧类标签可见，伪标签不是主要矛盾。若只跑 sequential，伪标签收益可能很弱。
+当前进展：batch-level quantile 与 offline `artifact_class` 均已完成。artifact 相对 fixed 0.6 六组稳定但只有 `+0.0362 pp`；相对 matched-global 仅 `+0.0020 pp`，证明主要收益来自总体覆盖率而非类别阈值。注意：sequential 下旧类标签可见，伪标签不是主要矛盾。下一步不再扫 hard threshold，而是先审计 reliability，再筛选 confidence/margin-weighted C-RLS。
 
 ### 第三优先级：轻量解析集成
 
@@ -329,15 +362,15 @@ shared step0 DeepLabV3-ResNet101
 论文故事线建议：
 
 1. CFSSeg 将类增量分割分类头更新转化为闭式递归更新，解决了梯度微调的遗忘和高成本问题。
-2. 但随机 RHL 特征尺度不受控，固定伪标签阈值也难以适应不同类别和不同 batch 的置信度分布。
-3. 本工作在不破坏闭式解主干的前提下，提出稳定化 RHL 特征接口和自适应伪标签策略，并用轻量解析集成提升 VOC `15-5` 结果。
+2. 但随机 RHL 特征尺度不受控，伪标签 hard threshold 又会把连续可靠性压缩成二值接收信号。
+3. 本工作在不破坏闭式解主干的前提下，探索稳定化 RHL 特征接口和可靠性加权解析更新，并用轻量解析集成提升 VOC `15-5` 结果。该表述仍须以后续实验通过预注册门槛为前提。
 
 ## 8. 当前关键决策
 
 1. DeepLabV3+ 已完成主线融合，可以作为后续实验 base；但论文表述必须写清 `DeepLabV3+ + aspp_up AIR feature`，不能把全部收益说成"只换模型"。
-2. 当前不再继续围绕 V3+ 做额外验证；后续集中推进 RHL 五方法和自适应伪标签阈值。
+2. 当前不再继续围绕 V3+ 做额外验证；后续集中推进 RHL 五方法和可靠性加权伪标签。
 3. RHL 线优先保证变量可归因：`random_seed`、`rhl_seed`、`BUFFER`、`GAMMA`、`RHL_NORM`、`MODEL`、`AIR_FEATURE_SOURCE` 必须记录。
-4. 伪标签改进应优先在 `disjoint` / `overlap` 验证，不要只用 sequential 判断其价值。
+4. 伪标签改进应优先在 `disjoint` / `overlap` 验证，不要只用 sequential 判断其价值。matched-global 六组已经否定继续细化类别 hard threshold；下一步先做 raw-mask reliability audit，再进行 reliability-weighted C-RLS 单 seed 机制筛选，通过门槛后才扩展多 seed 和 `15-1 overlap`。
 5. 集成系统优先做共享 encoder / 解析头 / RHL 子空间的轻量集成，除非有明确证据再上多 backbone 或 snapshot。
 
 ## 9. 后续代理接手时的最小阅读顺序
