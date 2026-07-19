@@ -52,6 +52,8 @@ COMMON_ARGS=(
 )
 
 SEARCH_CMD=(
+    # search_rhl_class_weights.py is val-only by construction and has no
+    # --mode option; its main() always selects the val loader.
     "$PYTHON" tools/search_rhl_class_weights.py
     --ckpts "${CKPT_LIST[@]}"
     "${COMMON_ARGS[@]}"

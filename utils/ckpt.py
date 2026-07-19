@@ -27,6 +27,8 @@ def load_ckpt(path):
     
     optimizer_state = checkpoint.get('optimizer_state', None)
     best_score = checkpoint.get('best_score', None)
-    
+
+    # training_config is audit metadata. The serialized model object restores
+    # the RHL topology; keep the established three-value load contract.
     print("load checkpoint from ", path)
     return model, optimizer_state, best_score

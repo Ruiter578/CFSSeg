@@ -425,6 +425,8 @@ class Trainer(object):
             step0_opts = self.make_step0_loader_opts(self.opts)
             self.train_loader0, self.val_loader0, self.test_loader0 = init_dataloader(step0_opts)
             realign_config = self._checkpoint_config(step0_opts)
+            # This is the current experiment's realignment output, not the
+            # immutable base_subpath step0 checkpoint directory.
             self.root_path0 = f"checkpoints/{self.opts.subpath}/{self.opts.dataset}/{self.opts.task}/{self.opts.setting}/step0/"
             mkdir(self.root_path0)
             self._write_run_config(self.root_path0, config=realign_config)

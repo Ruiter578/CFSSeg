@@ -201,6 +201,8 @@ def write_run_manifest(
         "rhl_norm": args.get("rhl_norm"),
         "rhl_norm_eps": args.get("rhl_norm_eps"),
         "rhl_seed": args.get("rhl_seed"),
+        "rhl_init": args.get("rhl_init"),
+        "rhl_scale_mode": args.get("rhl_scale_mode"),
         "rhl_stats": args.get("rhl_stats"),
         "analytic_tail_epsilon": args.get("analytic_tail_epsilon"),
         "evaluation_mode": args.get("evaluation_mode"),

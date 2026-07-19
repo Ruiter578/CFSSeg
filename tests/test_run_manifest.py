@@ -74,6 +74,8 @@ class RunManifestTests(unittest.TestCase):
             lr=0.01,
             rhl_norm="none",
             rhl_seed=-1,
+            rhl_init="orthogonal_antithetic",
+            rhl_scale_mode="kaiming",
             air_feature_source="auto",
         )
 
@@ -102,6 +104,8 @@ class RunManifestTests(unittest.TestCase):
         self.assertEqual(manifest["lr"], 0.01)
         self.assertIn("use_pseudo_label", manifest)
         self.assertEqual(manifest["rhl_norm"], "none")
+        self.assertEqual(manifest["rhl_init"], "orthogonal_antithetic")
+        self.assertEqual(manifest["rhl_scale_mode"], "kaiming")
         self.assertEqual(manifest["git_commit"], "abc123")
         self.assertEqual(
             manifest["base_checkpoint_sha256"],
