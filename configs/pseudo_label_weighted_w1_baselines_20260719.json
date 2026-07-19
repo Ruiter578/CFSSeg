@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "settings": {
+    "disjoint": {
+      "accepted_count": 51309305,
+      "candidate_count": 51309305,
+      "metrics": {
+        "all_miou": 0.6948731452045601,
+        "new_miou": 0.42623742979651624,
+        "old_miou": 0.7788218062695736
+      },
+      "result_path": "checkpoints/20260719_pseudo_15-5_disjoint_globalfixed0p029296875_seed1_bs32_recovery1_reuse20260705disjointstep0/voc/15-5/disjoint/step1/test_results_20260719_045822.json",
+      "result_sha256": "e12f93af647097387ab65d40d28b39229284ea0065a2059e62a679c3da8cd59a",
+      "teacher_sha256": "040c69eba9be68c4f370afaf31baf3fa14a16ad50d22a1a53752e7fd3ea37962",
+      "threshold": 0.029296875
+    },
+    "overlap": {
+      "accepted_count": 49462962,
+      "candidate_count": 49963137,
+      "metrics": {
+        "all_miou": 0.7080382155336873,
+        "new_miou": 0.4229646566976478,
+        "old_miou": 0.7971237026699497
+      },
+      "result_path": "checkpoints/20260718_pseudo_15-5_overlap_globalfixed0p447265625_seed1_bs32_reuse20260627step0/voc/15-5/overlap/step1/test_results_20260718_155137.json",
+      "result_sha256": "de0af6100b199d1ac4c3cb0efd94b350fb8a92c6acaa2bbf53ef4fbc7d57b24e",
+      "teacher_sha256": "6505c26b567cefbb9eb099af174961cbd4596d139b30a7f92f952ad494a9a913",
+      "threshold": 0.447265625
+    }
+  },
+  "w0_audit": {
+    "disjoint": {
+      "summary_path": "artifacts/pseudo_label/reliability_audit_w0_20260719/disjoint/reliability_summary.json",
+      "summary_sha256": "f01bded16523b408c953f1d7be100a4de5297e591040a1cc1ab4886e7538dfd3"
+    },
+    "overlap": {
+      "summary_path": "artifacts/pseudo_label/reliability_audit_w0_20260719/overlap/reliability_summary.json",
+      "summary_sha256": "1a15c4cfa44ecf01b2662adb29cdcec695e377dbff0045f9cdedbfebeb57ffca"
+    }
+  }
+}

@@ -5,6 +5,7 @@ inference_test_output
 
 *.png
 *.json
+!configs/pseudo_label_weighted_w1_baselines_20260719.json
 *.diff
 *.jpg
 
@@ -62,6 +63,14 @@ data_root/
 
 logs/**
 /artifacts/pseudo_label/reliability_audit_w0_*/
+!/artifacts/pseudo_label/reliability_audit_w0_20260719/
+/artifacts/pseudo_label/reliability_audit_w0_20260719/*
+!/artifacts/pseudo_label/reliability_audit_w0_20260719/overlap/
+/artifacts/pseudo_label/reliability_audit_w0_20260719/overlap/*
+!/artifacts/pseudo_label/reliability_audit_w0_20260719/overlap/reliability_summary.json
+!/artifacts/pseudo_label/reliability_audit_w0_20260719/disjoint/
+/artifacts/pseudo_label/reliability_audit_w0_20260719/disjoint/*
+!/artifacts/pseudo_label/reliability_audit_w0_20260719/disjoint/reliability_summary.json
 
 # Local papers and large documents
 *.pdf

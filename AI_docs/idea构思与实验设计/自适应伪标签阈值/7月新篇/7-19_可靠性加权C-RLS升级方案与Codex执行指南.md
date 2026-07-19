@@ -1012,8 +1012,8 @@ mean_Δ = (Δ_overlap + Δ_disjoint) / 2
 
 1. `mean_Δ all mIoU >= +0.1 pp`；
 2. 任一 setting `Δ all mIoU >= -0.05 pp`；
-3. old mIoU 改善不以 new mIoU 明显下降换取；
-4. pseudo weight 分布不是几乎全 0 或全 1；
+3. 任一 setting 的 `Δ new mIoU >= -0.10 pp`，防止 old mIoU 改善以新类明显下降换取；
+4. pseudo weight 在 `[0,0.05]` 或 `[0.95,1]` 任一端点区间的最大质量占比不超过 95%；
 5. 与 W0 reliability 方向一致；
 6. 没有代码/manifest/accepted-mask 对照异常。
 
@@ -1172,26 +1172,26 @@ tail -f logs/pseudo_label/weighted_w1_20260719.log
 
 ## 18. 启动前最终验收
 
-- [ ] 用户已明确确认开始实施；
-- [ ] W0 工具单元测试通过；
-- [ ] W0 overlap/disjoint 正式 audit 完成；
-- [ ] 至少一个 signal 通过 W0 gate；
-- [ ] weighted core 单元测试通过；
-- [ ] `sample_weight=None` 与历史路径数值等价；
-- [ ] accepted mask 与 matched-global baseline 语义一致；
-- [ ] parser → config → manifest → stats → summary 字段贯通；
-- [ ] Python compile 通过；
-- [ ] shell `bash -n` 通过；
-- [ ] 全测试通过；
-- [ ] `git diff --check` 通过；
-- [ ] W1 dry-run 只有预期变量变化；
-- [ ] 两个 step0 SHA 正确；
-- [ ] baseline JSON 指标正确；
-- [ ] 四个新输出目录不存在；
-- [ ] 磁盘至少 20 GiB；
-- [ ] GPU 显存足够；
-- [ ] 没有需要避让的他人训练；
-- [ ] tmux 名称、日志、summary 路径明确。
+- [x] 用户已明确确认开始实施；
+- [x] W0 工具单元测试通过；
+- [x] W0 overlap/disjoint 正式 audit 完成；
+- [x] 至少一个 signal 通过 W0 gate；
+- [x] weighted core 单元测试通过；
+- [x] `sample_weight=None` 与历史路径数值等价；
+- [x] accepted mask 与 matched-global baseline 语义一致；
+- [x] parser → config → manifest → stats → summary 字段贯通；
+- [x] Python compile 通过；
+- [x] shell `bash -n` 通过；
+- [x] 全测试通过（97 tests）；
+- [x] `git diff --check` 通过；
+- [x] W1 dry-run 只有预期变量变化；
+- [x] 两个 step0 SHA 正确；
+- [x] baseline JSON 指标正确；
+- [x] 四个新输出目录不存在；
+- [x] 磁盘至少 20 GiB（启动前复核约 99 GiB）；
+- [x] GPU 显存足够（A100 80 GiB，启动前复核空闲约 79 GiB）；
+- [x] 没有需要避让的他人训练；
+- [x] tmux 名称、日志、summary 路径明确。
 
 ---
 
@@ -1218,9 +1218,9 @@ tail -f logs/pseudo_label/weighted_w1_20260719.log
 
 - [x] 实现并运行 W0；
 - [x] 根据 W0 gate 决定实现的 candidate：`confidence` 与 `confidence_margin` 均通过；
-- [ ] 实现 weighted C-RLS；
-- [ ] 完成测试与 smoke；
-- [ ] dry-run；
+- [x] 实现 weighted C-RLS；
+- [x] 完成测试与 smoke；
+- [x] dry-run；
 - [ ] 启动 W1；
 - [ ] 汇总并严格判定。
 
