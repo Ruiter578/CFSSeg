@@ -63,6 +63,11 @@ data_root/
 
 logs/**
 
+# Generated calibration/audit artifacts are local by default. Force-add only
+# small curated evidence files when a protocol explicitly requires them.
+artifacts/**
+!artifacts/
+
 # Local papers and large documents
 *.pdf
 
