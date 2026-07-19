@@ -1,5 +1,8 @@
 import csv
 import json
+import os
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -39,6 +42,36 @@ class _SyntheticVocDataset:
 
 
 class PseudoLabelReliabilityAuditTests(unittest.TestCase):
+    def test_formal_runner_dry_run_lists_both_settings_without_writes(self):
+        runner = (
+            Path(__file__).resolve().parents[1]
+            / "tools/run_pseudo_label_reliability_w0_20260719.sh"
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_root = Path(tmpdir) / "audit"
+            env = dict(os.environ)
+            env.update(
+                {
+                    "DRY_RUN": "1",
+                    "OUTPUT_ROOT": str(output_root),
+                    "PYTHON": sys.executable,
+                }
+            )
+            completed = subprocess.run(
+                ["bash", str(runner)],
+                cwd=Path(__file__).resolve().parents[1],
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertIn("--setting overlap", completed.stdout)
+        self.assertIn("--setting disjoint", completed.stdout)
+        self.assertIn("--max-samples 0", completed.stdout)
+        self.assertFalse(output_root.exists())
+
     def test_raw_mask_wrapper_keeps_pixel_alignment_and_voc_ordering(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             mask_path = Path(tmpdir) / "mask.png"
