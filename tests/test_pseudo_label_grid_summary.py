@@ -34,6 +34,7 @@ PHASE_B_HEADER = PHASE_A_HEADER + [
     "threshold_artifact",
     "threshold_max_batches",
 ]
+WEIGHTED_HEADER = PHASE_B_HEADER + ["weighting"]
 
 
 class PseudoLabelGridSummaryTests(unittest.TestCase):
@@ -71,6 +72,37 @@ class PseudoLabelGridSummaryTests(unittest.TestCase):
         self.assertEqual(rows[0]["strategy"], "artifact_class")
         self.assertEqual(rows[0]["threshold_artifact"], "artifacts/pseudo_label/q0p1.json")
         self.assertEqual(rows[0]["threshold_max_batches"], "0")
+        self.assertEqual(rows[0]["weighting"], "")
+
+    def test_read_grid_accepts_weighting_and_runner_forwards_it(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            grid = Path(tmpdir) / "grid.tsv"
+            grid.write_text(
+                "\t".join(WEIGHTED_HEADER)
+                + "\n"
+                + "weighted_conf\tsub\t15-5\toverlap\tfixed\t0.447265625\t0.7\t0.0\t1.0\t1\t0.0\t0.0\tbase\t1\t32\t32\t8196\t1\t1\tdeeplabv3_resnet101\tauto\t\t0\tconfidence\n",
+                encoding="utf-8",
+            )
+
+            rows = read_grid(grid)
+            result = subprocess.run(
+                [
+                    "bash",
+                    "tools/run_pseudo_label_grid.sh",
+                    "--grid",
+                    str(grid),
+                    "--mode",
+                    "dry-run",
+                ],
+                cwd=REPO_ROOT,
+                check=False,
+                text=True,
+                capture_output=True,
+            )
+
+        self.assertEqual(rows[0]["weighting"], "confidence")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("PSEUDO_LABEL_WEIGHTING=confidence", result.stdout)
 
     def test_grid_runner_dry_run_passes_artifact_environment(self):
         with tempfile.TemporaryDirectory() as tmpdir:

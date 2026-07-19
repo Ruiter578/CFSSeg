@@ -22,6 +22,55 @@ class FakeBackbone(nn.Module):
 
 
 class AirFeatureIntegrationTests(unittest.TestCase):
+    def test_air_fit_nearest_aligns_labels_and_sample_weight(self):
+        class RecordingLinear(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.received = None
+
+            def fit(self, X, y, sample_weight=None):
+                self.received = (X.clone(), y.clone(), sample_weight.clone())
+
+        air = AIR.__new__(AIR)
+        nn.Module.__init__(air)
+        air.H = 2
+        air.W = 2
+        air.feature_expansion = lambda images: torch.ones(
+            images.shape[0], 4, 3, dtype=torch.double
+        )
+        recorder = RecordingLinear()
+        air.analytic_linear = recorder
+        labels = torch.tensor(
+            [[
+                [0, 0, 1, 1],
+                [0, 0, 1, 1],
+                [2, 2, 255, 255],
+                [2, 2, 255, 255],
+            ]]
+        )
+        sample_weight = torch.tensor(
+            [[
+                [1.0, 1.0, 0.8, 0.8],
+                [1.0, 1.0, 0.8, 0.8],
+                [0.4, 0.4, 0.0, 0.0],
+                [0.4, 0.4, 0.0, 0.0],
+            ]]
+        )
+
+        air.fit(torch.zeros(1, 3, 4, 4), labels, sample_weight=sample_weight)
+
+        _, aligned_labels, aligned_weight = recorder.received
+        self.assertEqual(tuple(aligned_labels.shape), (1, 1, 2, 2))
+        self.assertEqual(tuple(aligned_weight.shape), (1, 2, 2))
+        torch.testing.assert_close(
+            aligned_labels.squeeze(1),
+            torch.tensor([[[0, 1], [2, 255]]]),
+        )
+        torch.testing.assert_close(
+            aligned_weight,
+            torch.tensor([[[1.0, 0.8], [0.4, 0.0]]]),
+        )
+
     def setUp(self):
         torch.manual_seed(1)
         self.images = torch.randn(2, 3, 33, 33)

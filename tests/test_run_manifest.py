@@ -86,6 +86,7 @@ class RunManifestTests(unittest.TestCase):
             pseudo_label_threshold_artifact="thresholds.json",
             pseudo_label_threshold_max_batches=12,
             pseudo_label_stats=True,
+            pseudo_label_weighting="confidence_margin",
         )
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -125,6 +126,11 @@ class RunManifestTests(unittest.TestCase):
         )
         self.assertEqual(manifest["pseudo_label_threshold_max_batches"], 12)
         self.assertTrue(manifest["pseudo_label_stats"])
+        self.assertEqual(manifest["pseudo_label_weighting"], "confidence_margin")
+        self.assertEqual(
+            manifest["args"]["pseudo_label_weighting"],
+            "confidence_margin",
+        )
         self.assertEqual(manifest["rhl_norm"], "none")
         self.assertEqual(manifest["git_commit"], "abc123")
         self.assertEqual(
@@ -222,6 +228,61 @@ class RunManifestTests(unittest.TestCase):
         self.assertEqual(manifest["model"], "deeplabv3plus_resnet101")
         self.assertEqual(manifest["buffer"], 8208)
         self.assertEqual(manifest["git_commit"], "abc123")
+
+    def test_manifest_records_w1_source_and_baseline_provenance(self):
+        opts = replace(
+            Config(),
+            setting="overlap",
+            pseudo_label_weighting="confidence",
+        )
+        with tempfile.TemporaryDirectory() as tmpdir, patch.dict(
+            os.environ,
+            {
+                "SEGACIL_SOURCE_COMMIT": "source123",
+                "SEGACIL_SOURCE_DIRTY": "false",
+                "SEGACIL_SOURCE_STATUS_PATH": "logs/source_status.txt",
+                "SEGACIL_SOURCE_PATCH_PATH": "logs/source_patch.diff",
+                "SEGACIL_BASELINE_REGISTRY_PATH": "configs/baselines.json",
+                "SEGACIL_BASELINE_REGISTRY_SHA256": "c" * 64,
+                "SEGACIL_PIN_MEMORY": "0",
+                "SEGACIL_OVERLAP_BASELINE_RESULT_PATH": "baseline.json",
+                "SEGACIL_OVERLAP_BASELINE_RESULT_SHA256": "b" * 64,
+            },
+            clear=False,
+        ):
+            checkpoint = Path(tmpdir) / "step0.pth"
+            checkpoint.write_bytes(b"teacher")
+            manifest_path = write_run_manifest(
+                output_dir=tmpdir,
+                opts=opts,
+                requested_air_feature_source="auto",
+                resolved_air_feature_source="decoder",
+                base_checkpoint_path=checkpoint,
+            )
+            manifest = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
+
+        self.assertEqual(manifest["source_commit"], "source123")
+        self.assertFalse(manifest["source_dirty"])
+        self.assertEqual(
+            manifest["source_status_path"],
+            "logs/source_status.txt",
+        )
+        self.assertEqual(
+            manifest["source_patch_path"],
+            "logs/source_patch.diff",
+        )
+        self.assertEqual(
+            manifest["baseline_registry_path"],
+            "configs/baselines.json",
+        )
+        self.assertEqual(manifest["baseline_registry_sha256"], "c" * 64)
+        self.assertEqual(manifest["pin_memory"], "0")
+        self.assertEqual(manifest["baseline_result_path"], "baseline.json")
+        self.assertEqual(manifest["baseline_result_sha256"], "b" * 64)
+        self.assertEqual(
+            manifest["teacher_sha256"],
+            manifest["base_checkpoint_sha256"],
+        )
 
     def test_manifest_accepts_plain_namespace_options(self):
         opts = SimpleNamespace(

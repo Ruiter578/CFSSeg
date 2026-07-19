@@ -14,11 +14,17 @@ VALID_STRATEGIES = {
     "batch_class",
     "artifact_class",
 }
+VALID_WEIGHTING_STRATEGIES = {
+    "none",
+    "confidence",
+    "confidence_margin",
+}
 
 
 @dataclass
 class PseudoLabelConfig:
     strategy: str = "off"
+    weighting: str = "none"
     fixed_confidence: float = 0.7
     quantile: float = 0.7
     min_conf: float = 0.0
@@ -48,6 +54,15 @@ class PseudoLabelBatchStats:
     per_class_candidates: Dict[str, int]
     per_class_accepted: Dict[str, int]
     fallbacks: Dict[str, str] = field(default_factory=dict)
+    weighting: str = "none"
+    weighted_pixel_count: int = 0
+    weight_sum: float = 0.0
+    weight_sq_sum: float = 0.0
+    weight_min: Optional[float] = None
+    weight_max: Optional[float] = None
+    weight_histogram: list = field(default_factory=list)
+    per_class_weight_sum: Dict[str, float] = field(default_factory=dict)
+    per_class_weight_count: Dict[str, int] = field(default_factory=dict)
 
 
 @dataclass
@@ -55,6 +70,7 @@ class PseudoLabelResult:
     labels: torch.Tensor
     mask: torch.Tensor
     stats: PseudoLabelBatchStats
+    sample_weight: Optional[torch.Tensor] = None
 
 
 def resolve_pseudo_label_strategy(use_pseudo_label, pseudo_label_strategy):
@@ -69,6 +85,14 @@ def resolve_pseudo_label_strategy(use_pseudo_label, pseudo_label_strategy):
 def validate_pseudo_label_config(config: PseudoLabelConfig):
     if config.strategy not in VALID_STRATEGIES:
         raise ValueError(f"Unsupported pseudo_label_strategy: {config.strategy}")
+    if config.weighting not in VALID_WEIGHTING_STRATEGIES:
+        raise ValueError(
+            f"Unsupported pseudo_label_weighting: {config.weighting}"
+        )
+    if config.strategy == "off" and config.weighting != "none":
+        raise ValueError(
+            "pseudo_label_weighting requires pseudo-labeling to be enabled."
+        )
     if not 0.0 <= config.quantile <= 1.0:
         raise ValueError("pseudo_label_quantile must be in [0, 1].")
     if not 0.0 <= config.min_conf <= 1.0:
@@ -92,6 +116,7 @@ def config_from_opts(opts):
     )
     config = PseudoLabelConfig(
         strategy=strategy,
+        weighting=str(getattr(opts, "pseudo_label_weighting", "none")),
         fixed_confidence=float(getattr(opts, "pseudo_label_confidence", 0.7)),
         quantile=float(getattr(opts, "pseudo_label_quantile", 0.7)),
         min_conf=float(getattr(opts, "pseudo_label_min_conf", 0.0)),
@@ -280,7 +305,97 @@ def resolve_thresholds(candidates, config: PseudoLabelConfig, old_class_ids):
     return thresholds
 
 
-def apply_pseudo_labels(labels, candidates, thresholds, margin_min: float, fallbacks=None):
+def build_pseudo_label_sample_weight(
+    labels,
+    candidates,
+    accepted_mask,
+    *,
+    weighting,
+):
+    if weighting not in VALID_WEIGHTING_STRATEGIES:
+        raise ValueError(f"Unsupported pseudo_label_weighting: {weighting}")
+    if weighting == "none":
+        return None
+    expected_shape = tuple(labels.shape)
+    tensors = {
+        "candidate scores": candidates.scores,
+        "candidate labels": candidates.labels,
+        "candidate margins": candidates.margins,
+        "candidate mask": candidates.mask,
+        "accepted mask": accepted_mask,
+    }
+    for name, tensor in tensors.items():
+        if tuple(tensor.shape) != expected_shape:
+            raise ValueError(
+                f"{name} shape {tuple(tensor.shape)} does not match labels "
+                f"shape {expected_shape}."
+            )
+    if accepted_mask.dtype != torch.bool or candidates.mask.dtype != torch.bool:
+        raise ValueError("Candidate and accepted masks must be boolean.")
+    if bool((accepted_mask & ~candidates.mask).any()):
+        raise ValueError("accepted_mask must be a subset of candidate mask.")
+    if not bool(torch.isfinite(candidates.scores).all()):
+        raise ValueError("Candidate confidence scores must be finite.")
+    if not bool(torch.isfinite(candidates.margins).all()):
+        raise ValueError("Candidate margins must be finite.")
+    if bool(((candidates.scores < 0) | (candidates.scores > 1)).any()):
+        raise ValueError("Candidate confidence scores must be in [0, 1].")
+    if bool(((candidates.margins < 0) | (candidates.margins > 1)).any()):
+        raise ValueError("Candidate margins must be in [0, 1].")
+
+    sample_weight = torch.ones_like(labels, dtype=torch.float32)
+    sample_weight[labels == 255] = 0.0
+    accepted_weight = candidates.scores.float()
+    if weighting == "confidence_margin":
+        accepted_weight = accepted_weight * candidates.margins.float()
+    sample_weight[accepted_mask] = accepted_weight[accepted_mask].clamp(0.0, 1.0)
+    if not bool(torch.isfinite(sample_weight).all()):
+        raise ValueError("Pseudo-label sample weights must be finite.")
+    if bool(((sample_weight < 0) | (sample_weight > 1)).any()):
+        raise ValueError("Pseudo-label sample weights must be in [0, 1].")
+    visible_gt = (labels != 0) & (labels != 255)
+    if bool((sample_weight[visible_gt] != 1).any()):
+        raise RuntimeError("Visible ground-truth pixels must keep weight 1.")
+    if bool((sample_weight[labels == 255] != 0).any()):
+        raise RuntimeError("Ignore pixels must have weight 0.")
+    return sample_weight
+
+
+def _attach_weight_stats(stats, candidates, accepted, sample_weight, weighting):
+    stats.weighting = weighting
+    if sample_weight is None:
+        return
+    accepted_weights = sample_weight[accepted].detach().float().cpu()
+    stats.weighted_pixel_count = int(accepted_weights.numel())
+    if accepted_weights.numel() == 0:
+        stats.weight_histogram = [0] * 20
+        return
+    stats.weight_sum = float(accepted_weights.sum().item())
+    stats.weight_sq_sum = float((accepted_weights * accepted_weights).sum().item())
+    stats.weight_min = float(accepted_weights.min().item())
+    stats.weight_max = float(accepted_weights.max().item())
+    stats.weight_histogram = (
+        torch.histc(accepted_weights, bins=20, min=0.0, max=1.0)
+        .long()
+        .tolist()
+    )
+    for class_id in torch.unique(candidates.labels[accepted]).tolist():
+        class_key = str(int(class_id))
+        class_weights = sample_weight[
+            accepted & (candidates.labels == int(class_id))
+        ].detach().float()
+        stats.per_class_weight_count[class_key] = int(class_weights.numel())
+        stats.per_class_weight_sum[class_key] = float(class_weights.sum().item())
+
+
+def apply_pseudo_labels(
+    labels,
+    candidates,
+    thresholds,
+    margin_min: float,
+    fallbacks=None,
+    weighting="none",
+):
     pseudo_labels = labels.clone()
     accepted = candidates.mask & (candidates.margins >= float(margin_min))
     for class_key, threshold in thresholds.items():
@@ -305,7 +420,25 @@ def apply_pseudo_labels(labels, candidates, thresholds, margin_min: float, fallb
         per_class_accepted=per_class_accepted,
         fallbacks={str(key): str(value) for key, value in (fallbacks or {}).items()},
     )
-    return PseudoLabelResult(labels=pseudo_labels, mask=accepted, stats=stats)
+    sample_weight = build_pseudo_label_sample_weight(
+        labels,
+        candidates,
+        accepted,
+        weighting=weighting,
+    )
+    _attach_weight_stats(
+        stats,
+        candidates,
+        accepted,
+        sample_weight,
+        weighting,
+    )
+    return PseudoLabelResult(
+        labels=pseudo_labels,
+        mask=accepted,
+        stats=stats,
+        sample_weight=sample_weight,
+    )
 
 
 def load_threshold_artifact(
@@ -426,6 +559,7 @@ class PseudoLabeler:
             thresholds,
             self.config.margin_min,
             fallbacks,
+            weighting=self.config.weighting,
         )
         result.stats.strategy = self.config.strategy
         return result

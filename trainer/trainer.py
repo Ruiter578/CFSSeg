@@ -96,11 +96,32 @@ class AIR(nn.Module):
         return self.analytic_linear(self.feature_expansion(X))
     
     @torch.no_grad()
-    def fit(self, X, y, *args, **kwargs):
+    def fit(self, X, y, sample_weight=None):
         X = self.feature_expansion(X)   # X: B, H*W, buffer_size
+        label_shape = tuple(y.shape)
         y = y.unsqueeze(1).float()  # y: B, 1, h, w
         y = F.interpolate(y, size=(self.H, self.W), mode='nearest').long()
-        self.analytic_linear.fit(X, y)
+        aligned_weight = None
+        if sample_weight is not None:
+            if sample_weight.ndim != 3:
+                raise ValueError(
+                    "sample_weight must have shape [B,H,W], got "
+                    f"{tuple(sample_weight.shape)}."
+                )
+            if tuple(sample_weight.shape) != label_shape:
+                raise ValueError(
+                    "sample_weight shape must match labels: "
+                    f"{tuple(sample_weight.shape)} vs {label_shape}."
+                )
+            aligned_weight = F.interpolate(
+                sample_weight.unsqueeze(1).float(),
+                size=(self.H, self.W),
+                mode='nearest',
+            ).squeeze(1)
+            if not bool(torch.isfinite(aligned_weight).all()):
+                raise ValueError("sample_weight must be finite after alignment.")
+            aligned_weight = aligned_weight.clamp(0.0, 1.0)
+        self.analytic_linear.fit(X, y, sample_weight=aligned_weight)
     
     @torch.no_grad()
     def update(self):
@@ -346,14 +367,37 @@ class Trainer(object):
         images = images.to(self.device, dtype=torch.float32, non_blocking=True)
         labels = labels.to(self.device, dtype=torch.long, non_blocking=True)
         if not self.pseudo_labeling_enabled():
-            return labels
+            return labels, None
         if not hasattr(self, "model_prev"):
             raise RuntimeError("Pseudo-labeling requires self.model_prev teacher model.")
         with torch.no_grad():
             teacher_output = self.model_prev(images)
             result = self.pseudo_labeler.apply(teacher_output, labels)
         self.pseudo_label_stats_records.append(result.stats)
-        return result.labels
+        return result.labels, result.sample_weight
+
+    def fit_incremental_batch(self, images, labels):
+        images = images.to(self.device, dtype=torch.float32, non_blocking=True)
+        labels = labels.to(self.device, dtype=torch.long, non_blocking=True)
+        labels, sample_weight = self.apply_pseudo_labels_if_enabled(
+            images,
+            labels,
+        )
+        self.model.fit(
+            images,
+            labels,
+            sample_weight=sample_weight,
+        )
+
+    def fit_step0_realign_loader(self):
+        for X, y, _ in self.train_loader0:
+            X = X.to(self.device, dtype=torch.float32, non_blocking=True)
+            y = y.to(self.device, dtype=torch.long, non_blocking=True)
+            self.model.fit(X, y)
+
+    def fit_incremental_loader(self):
+        for X, y, _ in self.train_loader:
+            self.fit_incremental_batch(X, y)
 
     def save_pseudo_label_stats(self):
         if not self.pseudo_labeling_enabled():
@@ -376,6 +420,18 @@ class Trainer(object):
         fallback_counts = {
             str(class_id): {} for class_id in self.pseudo_label_old_class_ids
         }
+        total_weighted_pixels = 0
+        weight_sum = 0.0
+        weight_sq_sum = 0.0
+        weight_min = None
+        weight_max = None
+        weight_histogram = [0] * 20
+        per_class_weight_sum = {
+            str(class_id): 0.0 for class_id in self.pseudo_label_old_class_ids
+        }
+        per_class_weight_count = {
+            str(class_id): 0 for class_id in self.pseudo_label_old_class_ids
+        }
 
         for stats in self.pseudo_label_stats_records:
             total_candidates += stats.candidate_count
@@ -390,15 +446,91 @@ class Trainer(object):
             for class_id, fallback in stats.fallbacks.items():
                 class_fallbacks = fallback_counts.setdefault(class_id, {})
                 class_fallbacks[fallback] = class_fallbacks.get(fallback, 0) + 1
+            total_weighted_pixels += int(stats.weighted_pixel_count)
+            weight_sum += float(stats.weight_sum)
+            weight_sq_sum += float(stats.weight_sq_sum)
+            if stats.weight_min is not None:
+                weight_min = (
+                    float(stats.weight_min)
+                    if weight_min is None
+                    else min(weight_min, float(stats.weight_min))
+                )
+            if stats.weight_max is not None:
+                weight_max = (
+                    float(stats.weight_max)
+                    if weight_max is None
+                    else max(weight_max, float(stats.weight_max))
+                )
+            if stats.weight_histogram:
+                if len(stats.weight_histogram) != len(weight_histogram):
+                    raise ValueError("Pseudo-label weight histogram size mismatch.")
+                weight_histogram = [
+                    left + int(right)
+                    for left, right in zip(
+                        weight_histogram,
+                        stats.weight_histogram,
+                    )
+                ]
+            for class_id, value in stats.per_class_weight_sum.items():
+                per_class_weight_sum[class_id] = (
+                    per_class_weight_sum.get(class_id, 0.0) + float(value)
+                )
+            for class_id, count in stats.per_class_weight_count.items():
+                per_class_weight_count[class_id] = (
+                    per_class_weight_count.get(class_id, 0) + int(count)
+                )
 
         mean_thresholds = {}
         for class_id, count in threshold_counts.items():
             if count > 0:
                 mean_thresholds[class_id] = threshold_sums[class_id] / count
 
+        weight_mean = None
+        weight_std = None
+        weight_percentiles = {
+            "weight_p10": None,
+            "weight_p25": None,
+            "weight_p50": None,
+            "weight_p75": None,
+            "weight_p90": None,
+        }
+        histogram_summary = {}
+        if total_weighted_pixels > 0:
+            weight_mean = weight_sum / total_weighted_pixels
+            variance = max(
+                weight_sq_sum / total_weighted_pixels - weight_mean ** 2,
+                0.0,
+            )
+            weight_std = float(np.sqrt(variance))
+            cumulative = np.cumsum(weight_histogram)
+            for key, quantile in [
+                ("weight_p10", 0.10),
+                ("weight_p25", 0.25),
+                ("weight_p50", 0.50),
+                ("weight_p75", 0.75),
+                ("weight_p90", 0.90),
+            ]:
+                rank = max(1, int(np.ceil(quantile * total_weighted_pixels)))
+                bin_index = int(np.searchsorted(cumulative, rank, side="left"))
+                weight_percentiles[key] = (bin_index + 0.5) / len(weight_histogram)
+            histogram_summary = {
+                "bins": len(weight_histogram),
+                "range": [0.0, 1.0],
+                "counts": weight_histogram,
+            }
+        per_class_weight_mean = {
+            class_id: (
+                per_class_weight_sum[class_id] / count
+                if count > 0
+                else None
+            )
+            for class_id, count in per_class_weight_count.items()
+        }
+
         summary = {
-            "schema_version": 1,
+            "schema_version": 2,
             "strategy": self.pseudo_label_config.strategy,
+            "weighting": self.pseudo_label_config.weighting,
             "dataset": self.opts.dataset,
             "task": self.opts.task,
             "step": self.opts.curr_step,
@@ -425,6 +557,18 @@ class Trainer(object):
             "per_class_candidates": per_class_candidates,
             "per_class_accepted": per_class_accepted,
             "fallback_counts": fallback_counts,
+            "weighted_pixel_count": total_weighted_pixels,
+            "weight_sum": weight_sum if total_weighted_pixels > 0 else None,
+            "weight_mean": weight_mean,
+            "weight_std": weight_std,
+            "weight_min": weight_min,
+            "weight_max": weight_max,
+            **weight_percentiles,
+            "weight_histogram": histogram_summary,
+            "per_class_weight_mean": per_class_weight_mean,
+            "per_class_weight_sum": (
+                per_class_weight_sum if total_weighted_pixels > 0 else {}
+            ),
         }
         if self.pseudo_label_config.stats:
             summary["batch_stats"] = [
@@ -436,6 +580,15 @@ class Trainer(object):
                     "per_class_candidates": stats.per_class_candidates,
                     "per_class_accepted": stats.per_class_accepted,
                     "fallbacks": stats.fallbacks,
+                    "weighting": stats.weighting,
+                    "weighted_pixel_count": stats.weighted_pixel_count,
+                    "weight_sum": stats.weight_sum,
+                    "weight_sq_sum": stats.weight_sq_sum,
+                    "weight_min": stats.weight_min,
+                    "weight_max": stats.weight_max,
+                    "weight_histogram": stats.weight_histogram,
+                    "per_class_weight_sum": stats.per_class_weight_sum,
+                    "per_class_weight_count": stats.per_class_weight_count,
                 }
                 for stats in self.pseudo_label_stats_records
             ]
@@ -599,10 +752,7 @@ class Trainer(object):
                 rhl_seed=self.opts.rhl_seed,
                 rhl_stats=self.opts.rhl_stats,
             ).to(self.device).eval()
-            for seq, (X, y, _) in enumerate(self.train_loader0):
-                X = X.to(self.device, dtype=torch.float32, non_blocking=True)
-                y = y.to(self.device, dtype=torch.long, non_blocking=True)
-                self.model.fit(X, y)
+            self.fit_step0_realign_loader()
             self.model.update()
             print("start test!")
             save_ckpt(self.root_path0 + "final.pth", self.model, None, None)
@@ -612,11 +762,7 @@ class Trainer(object):
             print("start training")
             torch.cuda.empty_cache()
 
-            for _, (X, y, _) in enumerate(self.train_loader):
-                X = X.to(self.device, dtype=torch.float32, non_blocking=True)
-                y = y.to(self.device, dtype=torch.long, non_blocking=True)
-                y = self.apply_pseudo_labels_if_enabled(X, y)
-                self.model.fit(X, y)
+            self.fit_incremental_loader()
             self.model.update()
             self.save_pseudo_label_stats()
             save_ckpt(self.root_path + "final.pth", self.model, None, None)
@@ -636,11 +782,7 @@ class Trainer(object):
                 base_checkpoint_path=self.ckpt,
             )
 
-            for _, (X, y, _) in enumerate(self.train_loader):
-                X = X.to(self.device, dtype=torch.float32, non_blocking=True)
-                y = y.to(self.device, dtype=torch.long, non_blocking=True)
-                y = self.apply_pseudo_labels_if_enabled(X, y)
-                self.model.fit(X, y)
+            self.fit_incremental_loader()
             self.model.update()
             self.save_pseudo_label_stats()
 

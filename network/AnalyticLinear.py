@@ -76,7 +76,12 @@ class AnalyticLinear(torch.nn.Linear, metaclass=ABCMeta):
         self.weight = torch.zeros((self.weight.shape[0], 0)).to(self.weight)
 
     @abstractmethod
-    def fit(self, X: torch.Tensor, y: torch.Tensor) -> None:
+    def fit(
+        self,
+        X: torch.Tensor,
+        y: torch.Tensor,
+        sample_weight: Optional[torch.Tensor] = None,
+    ) -> None:
         raise NotImplementedError()
 
     def update(self) -> None:
@@ -105,23 +110,54 @@ class RecursiveLinear(AnalyticLinear):
         self.register_buffer("R", R)
 
     @torch.no_grad()
-    def fit(self, X: torch.Tensor, y: torch.Tensor) -> None:
+    def fit(
+        self,
+        X: torch.Tensor,
+        y: torch.Tensor,
+        sample_weight: Optional[torch.Tensor] = None,
+    ) -> None:
         """The core code of the ACIL and the G-ACIL.
         This implementation, which is different but equivalent to the equations shown in [1],
         is proposed in the G-ACIL [4], which supports mini-batch learning and the general CIL setting.
         """
         # 展平 X 和 y
         B, HW, C = X.shape
-   
+        original_y_shape = tuple(y.shape)
         X = X.view(B * HW, C)
         y = y.view(-1)
    
         # 过滤掉 y 中为 255 的样本
         mask = y != 255  # 创建掩码，过滤掉标签为 255 的样本
+        flat_weight = None
+        if sample_weight is not None:
+            allowed_shapes = {original_y_shape}
+            if len(original_y_shape) >= 3 and original_y_shape[1] == 1:
+                allowed_shapes.add(
+                    (original_y_shape[0], *original_y_shape[2:])
+                )
+            if tuple(sample_weight.shape) not in allowed_shapes:
+                raise ValueError(
+                    "sample_weight shape must match y without the singleton "
+                    f"channel: got {tuple(sample_weight.shape)}, "
+                    f"y={original_y_shape}."
+                )
+            flat_weight = sample_weight.reshape(-1)
+            if not bool(torch.isfinite(flat_weight).all()):
+                raise ValueError("sample_weight must be finite.")
+            if bool((flat_weight < 0).any()):
+                raise ValueError("sample_weight must be non-negative.")
+            mask &= flat_weight > 0
+            if not bool(mask.any()):
+                return
+
         X = X[mask]      # 过滤掉对应的 X
         y = y[mask]      # 过滤掉对应的 y
+        if flat_weight is not None:
+            flat_weight = flat_weight[mask]
 
         X, y = X.to(self.weight), y.to(self.weight)
+        if flat_weight is not None:
+            flat_weight = flat_weight.to(self.weight)
         num_targets = int(y.max()) + 1
         y = y.long()  # 确保 y 是整数类型
         Y = F.one_hot(y, num_classes=num_targets).to(self.weight)
@@ -152,17 +188,29 @@ class RecursiveLinear(AnalyticLinear):
         # # Equation (9) of ACIL
         # self.weight += self.R @ X.T @ (Y - X @ self.weight)
         
+        if flat_weight is not None:
+            sqrt_weight = torch.sqrt(flat_weight).unsqueeze(1)
+            X_weighted = X * sqrt_weight
+            Y_weighted = Y * sqrt_weight
+        else:
+            X_weighted = X
+            Y_weighted = Y
+
         # 使用Woodbury矩阵恒等式优化矩阵求逆
         # 计算 R 的逆
         R_inv = torch.inverse(self.R)
         # 计算 S = R_inv + X.T @ X
-        S = R_inv + X.T @ X
+        S = R_inv + X_weighted.T @ X_weighted
         # 计算 S 的逆
         S_inv = torch.inverse(S)
         # 更新 self.R
         self.R = S_inv
         # 更新 self.weight
-        self.weight += self.R @ X.T @ (Y - X @ self.weight)
+        self.weight += (
+            self.R
+            @ X_weighted.T
+            @ (Y_weighted - X_weighted @ self.weight)
+        )
 
 
 class GeneralizedARM(AnalyticLinear):
@@ -197,7 +245,14 @@ class GeneralizedARM(AnalyticLinear):
         return len(self.C_dict)
 
     @torch.inference_mode()
-    def fit(self, X: torch.Tensor, y: torch.Tensor) -> None:
+    def fit(
+        self,
+        X: torch.Tensor,
+        y: torch.Tensor,
+        sample_weight: Optional[torch.Tensor] = None,
+    ) -> None:
+        if sample_weight is not None:
+            raise ValueError("GeneralizedARM does not support sample_weight.")
         # X: B, HW, buffer_size
         # y: B, 1, H, W
         B, HW, C = X.shape

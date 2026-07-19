@@ -18,7 +18,7 @@ shrinkage margin_min base_subpath skip_step0 batch_size step0_batch_size buffer
 gamma random_seed model air_feature_source
 
 Phase B grids may append these optional columns:
-threshold_artifact threshold_max_batches
+threshold_artifact threshold_max_batches [weighting]
 
 Environment:
   PYTHON, DATA_ROOT, CUDA_VISIBLE_DEVICES, CUDA_MPS_PIPE_DIRECTORY, TMPDIR
@@ -105,6 +105,7 @@ print_command() {
         PSEUDO_LABEL_MARGIN_MIN="$margin_min" \
         PSEUDO_LABEL_THRESHOLD_ARTIFACT="$threshold_artifact" \
         PSEUDO_LABEL_THRESHOLD_MAX_BATCHES="$threshold_max_batches" \
+        PSEUDO_LABEL_WEIGHTING="$weighting" \
         BATCH_SIZE="$batch_size" \
         STEP0_BATCH_SIZE="$step0_batch_size" \
         BUFFER="$buffer" \
@@ -155,6 +156,7 @@ run_row() {
     PSEUDO_LABEL_MARGIN_MIN="$margin_min" \
     PSEUDO_LABEL_THRESHOLD_ARTIFACT="$threshold_artifact" \
     PSEUDO_LABEL_THRESHOLD_MAX_BATCHES="$threshold_max_batches" \
+    PSEUDO_LABEL_WEIGHTING="$weighting" \
     BATCH_SIZE="$batch_size" \
     STEP0_BATCH_SIZE="$step0_batch_size" \
     BUFFER="$buffer" \
@@ -165,16 +167,20 @@ run_row() {
 
 declare -A seen_subpaths=()
 line_no=0
-while IFS=$'\t' read -r \
+while IFS= read -r raw_line || [[ -n "${raw_line:-}" ]]
+do
+    raw_line="${raw_line%$'\r'}"
+    split_line="${raw_line//$'\t'/$'\x1f'}"
+    IFS=$'\x1f' read -r \
     name subpath task setting strategy confidence quantile min_conf max_conf min_pixels \
     shrinkage margin_min base_subpath skip_step0 batch_size step0_batch_size buffer \
-    gamma random_seed model air_feature_source threshold_artifact threshold_max_batches extra \
-    || [[ -n "${name:-}${subpath:-}${task:-}${setting:-}${strategy:-}${confidence:-}${quantile:-}${min_conf:-}${max_conf:-}${min_pixels:-}${shrinkage:-}${margin_min:-}${base_subpath:-}${skip_step0:-}${batch_size:-}${step0_batch_size:-}${buffer:-}${gamma:-}${random_seed:-}${model:-}${air_feature_source:-}${threshold_artifact:-}${threshold_max_batches:-}${extra:-}" ]]
-do
+    gamma random_seed model air_feature_source threshold_artifact threshold_max_batches weighting extra \
+    <<< "${split_line}"
     line_no=$((line_no + 1))
     air_feature_source="${air_feature_source%$'\r'}"
     threshold_artifact="${threshold_artifact%$'\r'}"
     threshold_max_batches="${threshold_max_batches%$'\r'}"
+    weighting="${weighting%$'\r'}"
     extra="${extra%$'\r'}"
     if [[ "$line_no" -eq 1 ]]; then
         if [[ -n "${extra:-}" \
@@ -202,10 +208,14 @@ do
             echo "grid header is not the expected pseudo-label grid header" >&2
             exit 2
         fi
-        if [[ -n "${threshold_artifact:-}${threshold_max_batches:-}" ]]; then
+        if [[ -n "${threshold_artifact:-}${threshold_max_batches:-}${weighting:-}" ]]; then
             if [[ "$threshold_artifact" != "threshold_artifact" \
                 || "$threshold_max_batches" != "threshold_max_batches" ]]; then
-                echo "grid optional header must be: threshold_artifact threshold_max_batches" >&2
+                echo "grid optional header must start with: threshold_artifact threshold_max_batches" >&2
+                exit 2
+            fi
+            if [[ -n "${weighting:-}" && "$weighting" != "weighting" ]]; then
+                echo "grid third optional header must be: weighting" >&2
                 exit 2
             fi
         fi
@@ -226,6 +236,13 @@ do
     done
     if [[ "$strategy" == "artifact_class" && -z "${threshold_artifact:-}" ]]; then
         echo "grid line ${line_no} strategy=artifact_class requires threshold_artifact" >&2
+        exit 2
+    fi
+    weighting="${weighting:-none}"
+    if [[ "$weighting" != "none" \
+        && "$weighting" != "confidence" \
+        && "$weighting" != "confidence_margin" ]]; then
+        echo "grid line ${line_no} has invalid weighting '${weighting}'" >&2
         exit 2
     fi
     if [[ -n "${seen_subpaths[$subpath]:-}" ]]; then

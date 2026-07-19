@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import torch
 
@@ -12,17 +12,246 @@ from utils.parser import Config, get_argparser
 from utils.pseudo_label import (
     PseudoLabelConfig,
     PseudoLabelBatchStats,
+    PseudoLabelCandidates,
     apply_pseudo_labels,
+    build_pseudo_label_sample_weight,
     compute_pseudo_label_candidates,
     extract_teacher_probabilities,
     load_threshold_artifact,
     resolve_pseudo_label_strategy,
     resolve_thresholds,
     resolve_thresholds_with_fallbacks,
+    validate_pseudo_label_config,
 )
 
 
 class PseudoLabelingTests(unittest.TestCase):
+    def test_trainer_off_returns_labels_and_no_weight(self):
+        trainer = Trainer.__new__(Trainer)
+        trainer.device = "cpu"
+        trainer.pseudo_labeler = None
+        labels = torch.tensor([[[0, 1]]])
+
+        result_labels, sample_weight = trainer.apply_pseudo_labels_if_enabled(
+            torch.zeros(1, 3, 1, 2),
+            labels,
+        )
+
+        torch.testing.assert_close(result_labels, labels)
+        self.assertIsNone(sample_weight)
+
+    def test_trainer_returns_weighted_pseudo_labels(self):
+        trainer = Trainer.__new__(Trainer)
+        trainer.device = "cpu"
+        trainer.model_prev = MagicMock(return_value=torch.zeros(1, 2, 1, 2))
+        expected_labels = torch.tensor([[[1, 0]]])
+        expected_weight = torch.tensor([[[0.8, 1.0]]])
+        stats = PseudoLabelBatchStats(
+            strategy="fixed",
+            candidate_count=1,
+            accepted_count=1,
+            thresholds={"1": 0.5},
+            per_class_candidates={"1": 1},
+            per_class_accepted={"1": 1},
+            weighting="confidence",
+        )
+        trainer.pseudo_labeler = SimpleNamespace(
+            enabled=True,
+            apply=MagicMock(
+                return_value=SimpleNamespace(
+                    labels=expected_labels,
+                    sample_weight=expected_weight,
+                    stats=stats,
+                )
+            ),
+        )
+        trainer.pseudo_label_stats_records = []
+
+        labels, sample_weight = trainer.apply_pseudo_labels_if_enabled(
+            torch.zeros(1, 3, 1, 2),
+            torch.zeros(1, 1, 2, dtype=torch.long),
+        )
+
+        torch.testing.assert_close(labels, expected_labels)
+        torch.testing.assert_close(sample_weight, expected_weight)
+        self.assertEqual(trainer.pseudo_label_stats_records, [stats])
+
+    def test_incremental_fit_forwards_weight_to_model(self):
+        trainer = Trainer.__new__(Trainer)
+        trainer.device = "cpu"
+        trainer.model = MagicMock()
+        labels = torch.zeros(1, 2, 2, dtype=torch.long)
+        sample_weight = torch.full((1, 2, 2), 0.5)
+        trainer.apply_pseudo_labels_if_enabled = MagicMock(
+            return_value=(labels, sample_weight)
+        )
+        images = torch.zeros(1, 3, 2, 2)
+
+        trainer.fit_incremental_batch(images, labels)
+
+        trainer.model.fit.assert_called_once()
+        args, kwargs = trainer.model.fit.call_args
+        torch.testing.assert_close(args[0], images)
+        torch.testing.assert_close(args[1], labels)
+        torch.testing.assert_close(kwargs["sample_weight"], sample_weight)
+
+    def test_step0_realign_loader_stays_unweighted(self):
+        trainer = Trainer.__new__(Trainer)
+        trainer.device = "cpu"
+        trainer.model = MagicMock()
+        trainer.train_loader0 = [
+            (
+                torch.zeros(1, 3, 2, 2),
+                torch.zeros(1, 2, 2, dtype=torch.long),
+                None,
+            )
+        ]
+
+        trainer.fit_step0_realign_loader()
+
+        trainer.model.fit.assert_called_once()
+        self.assertNotIn("sample_weight", trainer.model.fit.call_args.kwargs)
+
+    def test_step1_and_later_loader_use_incremental_weighted_path(self):
+        trainer = Trainer.__new__(Trainer)
+        trainer.fit_incremental_batch = MagicMock()
+        batch = (
+            torch.zeros(1, 3, 2, 2),
+            torch.zeros(1, 2, 2, dtype=torch.long),
+            None,
+        )
+        trainer.train_loader = [batch]
+
+        for curr_step in (1, 2):
+            with self.subTest(curr_step=curr_step):
+                trainer.opts = SimpleNamespace(curr_step=curr_step)
+                trainer.fit_incremental_batch.reset_mock()
+                trainer.fit_incremental_loader()
+                trainer.fit_incremental_batch.assert_called_once_with(
+                    batch[0],
+                    batch[1],
+                )
+
+    def test_parser_defaults_to_no_weighting_and_accepts_both_signals(self):
+        with patch("sys.argv", ["train.py"]):
+            defaults = get_argparser()
+        self.assertEqual(defaults.pseudo_label_weighting, "none")
+
+        for weighting in ("confidence", "confidence_margin"):
+            with self.subTest(weighting=weighting), patch(
+                "sys.argv",
+                ["train.py", "--pseudo_label_weighting", weighting],
+            ):
+                opts = get_argparser()
+            self.assertEqual(opts.pseudo_label_weighting, weighting)
+
+    def test_invalid_weighting_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "weighting"):
+            validate_pseudo_label_config(
+                PseudoLabelConfig(strategy="fixed", weighting="temperature")
+            )
+
+    def test_none_weighting_returns_none(self):
+        labels = torch.tensor([[[0, 255]]])
+        candidates = PseudoLabelCandidates(
+            scores=torch.tensor([[[0.8, 0.9]]]),
+            labels=torch.tensor([[[1, 1]]]),
+            margins=torch.tensor([[[0.5, 0.4]]]),
+            mask=torch.tensor([[[True, False]]]),
+        )
+
+        sample_weight = build_pseudo_label_sample_weight(
+            labels,
+            candidates,
+            torch.tensor([[[True, False]]]),
+            weighting="none",
+        )
+
+        self.assertIsNone(sample_weight)
+
+    def test_weight_map_uses_signal_only_for_accepted_pseudo_pixels(self):
+        labels = torch.tensor([[[0, 0, 2], [255, 0, 3]]])
+        candidates = PseudoLabelCandidates(
+            scores=torch.tensor([[[0.8, 0.7, 0.6], [0.9, 0.4, 0.5]]]),
+            labels=torch.tensor([[[1, 1, 1], [1, 1, 1]]]),
+            margins=torch.tensor([[[0.5, 0.2, 0.1], [0.8, 0.3, 0.4]]]),
+            mask=torch.tensor(
+                [[[True, True, False], [False, True, False]]]
+            ),
+        )
+        accepted = torch.tensor(
+            [[[True, False, False], [False, True, False]]]
+        )
+
+        confidence = build_pseudo_label_sample_weight(
+            labels, candidates, accepted, weighting="confidence"
+        )
+        confidence_margin = build_pseudo_label_sample_weight(
+            labels, candidates, accepted, weighting="confidence_margin"
+        )
+
+        torch.testing.assert_close(
+            confidence,
+            torch.tensor([[[0.8, 1.0, 1.0], [0.0, 0.4, 1.0]]]),
+        )
+        torch.testing.assert_close(
+            confidence_margin,
+            torch.tensor([[[0.4, 1.0, 1.0], [0.0, 0.12, 1.0]]]),
+        )
+
+    def test_weight_map_rejects_invalid_shapes_masks_and_values(self):
+        labels = torch.zeros(1, 1, 2, dtype=torch.long)
+        candidates = PseudoLabelCandidates(
+            scores=torch.tensor([[[0.8, float("nan")]]]),
+            labels=torch.ones(1, 1, 2, dtype=torch.long),
+            margins=torch.ones(1, 1, 2),
+            mask=torch.tensor([[[True, False]]]),
+        )
+        with self.assertRaisesRegex(ValueError, "subset"):
+            build_pseudo_label_sample_weight(
+                labels,
+                candidates,
+                torch.tensor([[[True, True]]]),
+                weighting="confidence",
+            )
+        with self.assertRaisesRegex(ValueError, "finite"):
+            build_pseudo_label_sample_weight(
+                labels,
+                candidates,
+                torch.tensor([[[True, False]]]),
+                weighting="confidence",
+            )
+        with self.assertRaisesRegex(ValueError, "shape"):
+            build_pseudo_label_sample_weight(
+                labels[:, :, :1],
+                candidates,
+                torch.tensor([[[True, False]]]),
+                weighting="confidence",
+            )
+
+    def test_apply_pseudo_labels_preserves_acceptance_and_attaches_weight(self):
+        labels = torch.zeros(1, 1, 2, dtype=torch.long)
+        candidates = PseudoLabelCandidates(
+            scores=torch.tensor([[[0.9, 0.4]]]),
+            labels=torch.tensor([[[1, 1]]]),
+            margins=torch.tensor([[[0.5, 0.5]]]),
+            mask=torch.ones(1, 1, 2, dtype=torch.bool),
+        )
+
+        result = apply_pseudo_labels(
+            labels,
+            candidates,
+            thresholds={"1": 0.5},
+            margin_min=0.0,
+            weighting="confidence",
+        )
+
+        self.assertTrue(torch.equal(result.mask, torch.tensor([[[True, False]]])))
+        torch.testing.assert_close(
+            result.sample_weight,
+            torch.tensor([[[0.9, 1.0]]]),
+        )
+
     def test_extract_teacher_probabilities_handles_deeplab_tuple_and_air_nhwc(self):
         nchw_logits = torch.tensor(
             [[[[0.0, 2.0]], [[2.0, 0.0]], [[-2.0, -2.0]]]]
@@ -282,6 +511,63 @@ class PseudoLabelingTests(unittest.TestCase):
         self.assertAlmostEqual(summary["mean_thresholds"]["1"], 0.65)
         self.assertEqual(summary["fallback_counts"], {"1": {}, "2": {}})
         self.assertEqual(len(summary["batch_stats"]), 2)
+        self.assertEqual(summary["schema_version"], 2)
+        self.assertEqual(summary["weighting"], "none")
+        self.assertEqual(summary["weighted_pixel_count"], 0)
+        self.assertIsNone(summary["weight_mean"])
+
+    def test_trainer_aggregates_weighted_pseudo_label_stats(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            trainer = Trainer.__new__(Trainer)
+            trainer.pseudo_labeler = SimpleNamespace(enabled=True)
+            trainer.pseudo_label_config = PseudoLabelConfig(
+                strategy="fixed",
+                weighting="confidence",
+                stats=True,
+            )
+            trainer.pseudo_label_old_class_ids = [1, 2]
+            trainer.opts = Config(
+                dataset="voc",
+                task="15-5",
+                curr_step=1,
+                setting="overlap",
+                pseudo_label_threshold_max_batches=0,
+            )
+            trainer.root_path = tmpdir
+            trainer.pseudo_label_stats_records = [
+                PseudoLabelBatchStats(
+                    strategy="fixed",
+                    candidate_count=3,
+                    accepted_count=2,
+                    thresholds={"1": 0.4, "2": 0.4},
+                    per_class_candidates={"1": 2, "2": 1},
+                    per_class_accepted={"1": 1, "2": 1},
+                    weighting="confidence",
+                    weighted_pixel_count=2,
+                    weight_sum=1.4,
+                    weight_sq_sum=1.0,
+                    weight_min=0.6,
+                    weight_max=0.8,
+                    weight_histogram=[0] * 12 + [1, 0, 0, 1] + [0] * 4,
+                    per_class_weight_sum={"1": 0.8, "2": 0.6},
+                    per_class_weight_count={"1": 1, "2": 1},
+                )
+            ]
+
+            stats_path = Path(trainer.save_pseudo_label_stats())
+            summary = json.loads(stats_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(summary["schema_version"], 2)
+        self.assertEqual(summary["weighting"], "confidence")
+        self.assertEqual(summary["weighted_pixel_count"], 2)
+        self.assertAlmostEqual(summary["weight_sum"], 1.4)
+        self.assertAlmostEqual(summary["weight_mean"], 0.7)
+        self.assertAlmostEqual(summary["weight_std"], 0.1)
+        self.assertEqual(summary["weight_min"], 0.6)
+        self.assertEqual(summary["weight_max"], 0.8)
+        self.assertEqual(sum(summary["weight_histogram"]["counts"]), 2)
+        self.assertAlmostEqual(summary["per_class_weight_mean"]["1"], 0.8)
+        self.assertAlmostEqual(summary["per_class_weight_sum"]["2"], 0.6)
 
     def test_artifact_thresholds_validate_metadata_and_load_thresholds(self):
         with tempfile.TemporaryDirectory() as tmpdir:

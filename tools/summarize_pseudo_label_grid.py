@@ -34,6 +34,7 @@ REQUIRED_GRID_FIELDS = [
 OPTIONAL_GRID_FIELDS = [
     "threshold_artifact",
     "threshold_max_batches",
+    "weighting",
 ]
 
 GRID_FIELDS = REQUIRED_GRID_FIELDS + OPTIONAL_GRID_FIELDS
@@ -50,6 +51,7 @@ SUMMARY_FIELDS = [
     "margin_min",
     "threshold_artifact",
     "threshold_max_batches",
+    "weighting",
     "status",
     "all_miou",
     "old_miou",
@@ -59,6 +61,13 @@ SUMMARY_FIELDS = [
     "candidate_count",
     "accepted_count",
     "accepted_ratio",
+    "weight_mean",
+    "weight_std",
+    "weight_p10",
+    "weight_p25",
+    "weight_p50",
+    "weight_p75",
+    "weight_p90",
     "delta_vs_off",
     "delta_vs_fixed07",
     "base_checkpoint_sha256",
@@ -82,10 +91,15 @@ def latest_result(output_dir):
 def read_grid(path):
     with Path(path).open(newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle, delimiter="\t")
-        if reader.fieldnames not in (REQUIRED_GRID_FIELDS, GRID_FIELDS):
+        legacy_artifact_fields = REQUIRED_GRID_FIELDS + OPTIONAL_GRID_FIELDS[:2]
+        if reader.fieldnames not in (
+            REQUIRED_GRID_FIELDS,
+            legacy_artifact_fields,
+            GRID_FIELDS,
+        ):
             raise ValueError(
                 f"Unexpected grid header in {path}: {reader.fieldnames}; expected "
-                f"{REQUIRED_GRID_FIELDS} or {GRID_FIELDS}"
+                f"{REQUIRED_GRID_FIELDS}, {legacy_artifact_fields}, or {GRID_FIELDS}"
             )
         rows = []
         for row in reader:
@@ -149,6 +163,7 @@ def summarize_row(row, checkpoints_root, dataset, off_baseline, fixed07_baseline
         "margin_min",
         "threshold_artifact",
         "threshold_max_batches",
+        "weighting",
     ]:
         summary[key] = row.get(key, "")
 
@@ -177,6 +192,13 @@ def summarize_row(row, checkpoints_root, dataset, off_baseline, fixed07_baseline
                 "accepted_count": stats.get("accepted_count"),
                 "accepted_ratio": stats.get("accepted_ratio"),
                 "teacher_sha256": stats.get("teacher_sha256"),
+                "weight_mean": stats.get("weight_mean"),
+                "weight_std": stats.get("weight_std"),
+                "weight_p10": stats.get("weight_p10"),
+                "weight_p25": stats.get("weight_p25"),
+                "weight_p50": stats.get("weight_p50"),
+                "weight_p75": stats.get("weight_p75"),
+                "weight_p90": stats.get("weight_p90"),
             }
         )
     if manifest is not None:
@@ -205,6 +227,7 @@ def write_markdown(rows, output_path, title, fixed07_baseline):
         "strategy",
         "confidence",
         "quantile",
+        "weighting",
         "threshold_artifact",
         "status",
         "all_miou",

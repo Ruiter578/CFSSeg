@@ -76,6 +76,7 @@ class Config:
     pseudo_label_threshold_artifact: Optional[str] = None
     pseudo_label_threshold_max_batches: Optional[int] = None
     pseudo_label_stats: bool = False
+    pseudo_label_weighting: str = 'none'
 
 
 def get_argparser() -> Config:
@@ -189,6 +190,11 @@ def get_argparser() -> Config:
     parser.add_argument("--pseudo_label_threshold_artifact", type=str, default=Config.pseudo_label_threshold_artifact)
     parser.add_argument("--pseudo_label_threshold_max_batches", type=int, default=Config.pseudo_label_threshold_max_batches)
     parser.add_argument("--pseudo_label_stats", action='store_true', default=Config.pseudo_label_stats)
+    parser.add_argument(
+        "--pseudo_label_weighting",
+        choices=["none", "confidence", "confidence_margin"],
+        default=Config.pseudo_label_weighting,
+    )
     args = parser.parse_args()
     return Config(**vars(args))
 

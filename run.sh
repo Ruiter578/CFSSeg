@@ -47,6 +47,7 @@ PSEUDO_LABEL_MARGIN_MIN="${PSEUDO_LABEL_MARGIN_MIN:-0.0}"
 PSEUDO_LABEL_THRESHOLD_ARTIFACT="${PSEUDO_LABEL_THRESHOLD_ARTIFACT:-}"
 PSEUDO_LABEL_THRESHOLD_MAX_BATCHES="${PSEUDO_LABEL_THRESHOLD_MAX_BATCHES:-}"
 PSEUDO_LABEL_STATS="${PSEUDO_LABEL_STATS:-0}"
+PSEUDO_LABEL_WEIGHTING="${PSEUDO_LABEL_WEIGHTING:-none}"
 
 DEFAULT_BATCH_SIZE="${DEFAULT_BATCH_SIZE:-32}"
 SPECIAL_BATCH_SIZE="${SPECIAL_BATCH_SIZE:-32}"
@@ -81,6 +82,7 @@ PSEUDO_LABEL_ARGS+=(
     --pseudo_label_min_pixels "$PSEUDO_LABEL_MIN_PIXELS"
     --pseudo_label_shrinkage "$PSEUDO_LABEL_SHRINKAGE"
     --pseudo_label_margin_min "$PSEUDO_LABEL_MARGIN_MIN"
+    --pseudo_label_weighting "$PSEUDO_LABEL_WEIGHTING"
 )
 if [[ -n "$PSEUDO_LABEL_THRESHOLD_ARTIFACT" ]]; then
     PSEUDO_LABEL_ARGS+=(--pseudo_label_threshold_artifact "$PSEUDO_LABEL_THRESHOLD_ARTIFACT")
@@ -98,7 +100,7 @@ echo "  task=${TASK}, setting=${SETTING}, steps=${START_STEP}-${END_STEP}"
 echo "  subpath=${SUBPATH}, base_subpath=${BASE_SUBPATH}"
 echo "  buffer=${BUFFER}, gamma=${GAMMA}, random_seed=${RANDOM_SEED}"
 echo "  rhl_norm=${RHL_NORM}, rhl_seed=${RHL_SEED}, rhl_stats=${RHL_STATS}"
-echo "  pseudo_label=${USE_PSEUDO_LABEL}, strategy=${PSEUDO_LABEL_STRATEGY:-<default>}, quantile=${PSEUDO_LABEL_QUANTILE}"
+echo "  pseudo_label=${USE_PSEUDO_LABEL}, strategy=${PSEUDO_LABEL_STRATEGY:-<default>}, weighting=${PSEUDO_LABEL_WEIGHTING}, quantile=${PSEUDO_LABEL_QUANTILE}"
 echo "  ckpt=${CKPT:-<none>}, curr_itrs=${CURR_ITRS}"
 
 for ((CURR_STEP=START_STEP; CURR_STEP<=END_STEP; CURR_STEP+=STEP_INCREMENT))

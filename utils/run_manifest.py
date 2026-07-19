@@ -75,6 +75,18 @@ def normalize_for_json(value):
     return str(value)
 
 
+def _environment_bool(name):
+    value = os.environ.get(name)
+    if value is None:
+        return None
+    normalized = value.strip().lower()
+    if normalized in {"1", "true", "yes"}:
+        return True
+    if normalized in {"0", "false", "no"}:
+        return False
+    return None
+
+
 def runtime_info():
     info = {
         "python": platform.python_version(),
@@ -143,6 +155,32 @@ def write_run_manifest(
         "commit": commit,
         "dirty": current_git_dirty(),
     }
+    setting = str(args.get("setting") or "").upper()
+    baseline_prefix = f"SEGACIL_{setting}_BASELINE" if setting else None
+    provenance = {
+        "source_commit": os.environ.get("SEGACIL_SOURCE_COMMIT"),
+        "source_dirty": _environment_bool("SEGACIL_SOURCE_DIRTY"),
+        "source_status_path": os.environ.get("SEGACIL_SOURCE_STATUS_PATH"),
+        "source_patch_path": os.environ.get("SEGACIL_SOURCE_PATCH_PATH"),
+        "baseline_registry_path": os.environ.get(
+            "SEGACIL_BASELINE_REGISTRY_PATH"
+        ),
+        "baseline_registry_sha256": os.environ.get(
+            "SEGACIL_BASELINE_REGISTRY_SHA256"
+        ),
+        "pin_memory": os.environ.get("SEGACIL_PIN_MEMORY"),
+        "baseline_result_path": (
+            os.environ.get(f"{baseline_prefix}_RESULT_PATH")
+            if baseline_prefix
+            else None
+        ),
+        "baseline_result_sha256": (
+            os.environ.get(f"{baseline_prefix}_RESULT_SHA256")
+            if baseline_prefix
+            else None
+        ),
+        "teacher_sha256": checkpoint_hash,
+    }
     manifest = {
         "schema_version": 2,
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -152,6 +190,7 @@ def write_run_manifest(
         "runtime": runtime_info(),
         "resolved_paths": resolved_paths,
         "air": air,
+        "provenance": provenance,
         "args": args,
         # Backward-compatible flat keys for existing reports and ad-hoc readers.
         "git_commit": commit,
@@ -169,6 +208,7 @@ def write_run_manifest(
         "base_subpath": args.get("base_subpath"),
         "base_checkpoint_path": resolved_paths["base_checkpoint_path"],
         "base_checkpoint_sha256": resolved_paths["base_checkpoint_sha256"],
+        **provenance,
         "batch_size": args.get("batch_size"),
         "val_batch_size": args.get("val_batch_size"),
         "crop_size": args.get("crop_size"),
@@ -202,6 +242,7 @@ def write_run_manifest(
         "pseudo_label_threshold_artifact": args.get("pseudo_label_threshold_artifact"),
         "pseudo_label_threshold_max_batches": args.get("pseudo_label_threshold_max_batches"),
         "pseudo_label_stats": args.get("pseudo_label_stats"),
+        "pseudo_label_weighting": args.get("pseudo_label_weighting"),
     }
 
     manifest_path = output_path / "run_manifest.json"

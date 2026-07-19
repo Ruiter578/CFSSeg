@@ -43,9 +43,12 @@ def stats_line(stats):
         return "- 伪标签统计：未启用或暂未落盘\n"
     return (
         f"- strategy: {stats.get('strategy')}\n"
+        f"- weighting: {stats.get('weighting', 'none')}\n"
         f"- candidate_count: {stats.get('candidate_count')}\n"
         f"- accepted_count: {stats.get('accepted_count')}\n"
         f"- accepted_ratio: {float(stats.get('accepted_ratio', 0.0)):.6f}\n"
+        f"- weight_mean: {stats.get('weight_mean')}\n"
+        f"- weight_std: {stats.get('weight_std')}\n"
         f"- old_class_ids: {stats.get('old_class_ids')}\n"
     )
 
@@ -104,6 +107,7 @@ def main():
             "pseudo_label_min_pixels",
             "pseudo_label_shrinkage",
             "pseudo_label_margin_min",
+            "pseudo_label_weighting",
         ]:
             report.append(f"- {key}: `{manifest.get(key)}`")
     else:
