@@ -61,6 +61,7 @@ checkpoints/**
 data_root/
 
 logs/**
+/artifacts/pseudo_label/reliability_audit_w0_*/
 
 # Local papers and large documents
 *.pdf
