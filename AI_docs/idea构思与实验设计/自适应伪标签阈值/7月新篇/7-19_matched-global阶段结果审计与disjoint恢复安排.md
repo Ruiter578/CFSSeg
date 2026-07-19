@@ -1,5 +1,8 @@
 # Matched-global 阶段结果审计与 disjoint 恢复安排
 
+> 状态更新（2026-07-19）：disjoint 三组已在独立 recovery `SUBPATH` 中全部完成，原失败目录未被覆盖。六组正式机制对比、stop-loss 结论与后续安排见：
+> `7-19_matched-global六组正式对比结论与后续安排.md`。本文其余内容保留为恢复前审计记录。
+
 ## 1. 审计结论
 
 原定六组 matched-global fixed 实验并未全部完成：
