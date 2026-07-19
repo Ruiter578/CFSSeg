@@ -43,7 +43,7 @@ class HyperparameterSearchPlumbingTests(unittest.TestCase):
         X = torch.zeros((1, 1, 2), dtype=torch.double)
         y = torch.ones((1, 1), dtype=torch.long)
 
-        with patch("network.AnalyticLinear.torch.randn", return_value=torch.ones((2, 2))):
+        with patch.object(torch, "randn", return_value=torch.ones((2, 2))):
             layer.fit(X, y)
 
         self.assertTrue(torch.equal(layer.weight, torch.zeros_like(layer.weight)))
