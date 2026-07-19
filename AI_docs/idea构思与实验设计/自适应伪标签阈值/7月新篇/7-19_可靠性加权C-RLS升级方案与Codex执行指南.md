@@ -1216,8 +1216,8 @@ tail -f logs/pseudo_label/weighted_w1_20260719.log
 
 等待用户确认后执行：
 
-- [ ] 实现并运行 W0；
-- [ ] 根据 W0 gate 决定实现的 candidate；
+- [x] 实现并运行 W0；
+- [x] 根据 W0 gate 决定实现的 candidate：`confidence` 与 `confidence_margin` 均通过；
 - [ ] 实现 weighted C-RLS；
 - [ ] 完成测试与 smoke；
 - [ ] dry-run；
