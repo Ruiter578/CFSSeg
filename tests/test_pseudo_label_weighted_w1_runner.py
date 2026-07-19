@@ -405,11 +405,12 @@ class PseudoLabelWeightedW1Tests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "SHA256"):
                 load_and_verify_baselines(registry, repo_root=Path("/"))
 
-    def test_runner_dry_run_prints_four_weighted_commands(self):
+    def test_runner_resume_dry_run_prints_only_missing_weighted_commands(self):
         env = dict(os.environ)
         env.update(
             {
                 "DRY_RUN": "1",
+                "RESUME": "1",
                 "PYTHON": "/home/linyichen/miniconda3/envs/segacil/bin/python",
                 "RHL_NORM": "l2",
                 "RHL_SEED": "99",
@@ -426,11 +427,11 @@ class PseudoLabelWeightedW1Tests(unittest.TestCase):
         )
 
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout.count("bash tools/run_adaptive_pseudo_label.sh"), 4)
-        self.assertEqual(result.stdout.count("PSEUDO_LABEL_WEIGHTING=confidence "), 2)
+        self.assertEqual(result.stdout.count("bash tools/run_adaptive_pseudo_label.sh"), 2)
+        self.assertEqual(result.stdout.count("PSEUDO_LABEL_WEIGHTING=confidence "), 1)
         self.assertEqual(
             result.stdout.count("PSEUDO_LABEL_WEIGHTING=confidence_margin "),
-            2,
+            1,
         )
         self.assertIn("[weighted-w1] dry-run complete", result.stdout)
         self.assertIn(
@@ -465,6 +466,31 @@ class PseudoLabelWeightedW1Tests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 3)
         self.assertIn("another W1 runner", result.stderr)
+
+    def test_runner_resume_dry_run_accepts_completed_rows(self):
+        env = os.environ.copy()
+        env.update(
+            {
+                "DRY_RUN": "1",
+                "RESUME": "1",
+                "PYTHON": (
+                    "/home/linyichen/miniconda3/envs/segacil/bin/python"
+                ),
+                "LOCK_PATH": "/tmp/segacil_weighted_w1_resume_test.lock",
+            }
+        )
+        result = subprocess.run(
+            ["bash", str(RUNNER)],
+            cwd=REPO_ROOT,
+            env=env,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("[weighted-w1] resume=true", result.stdout)
+        self.assertIn("[weighted-w1] dry-run complete", result.stdout)
 
     def test_step0_forces_unweighted_mode(self):
         script = ADAPTIVE_RUNNER.read_text(encoding="utf-8")

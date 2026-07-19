@@ -11,6 +11,7 @@ SUMMARY_BASE="${SUMMARY_BASE:-logs/pseudo_label/weighted_w1_20260719_summary}"
 SOURCE_PREFIX="${SOURCE_PREFIX:-logs/pseudo_label/weighted_w1_20260719_source}"
 LOCK_PATH="${LOCK_PATH:-logs/pseudo_label/weighted_w1_20260719.lock}"
 DRY_RUN="${DRY_RUN:-0}"
+RESUME="${RESUME:-0}"
 
 export PYTHON="${PYTHON:-/home/linyichen/miniconda3/envs/segacil/bin/python}"
 export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
@@ -21,10 +22,14 @@ export RHL_NORM=none
 export RHL_SEED=-1
 export PYTHONUNBUFFERED="${PYTHONUNBUFFERED:-1}"
 export ALLOW_INCOMPLETE=0
-export SKIP_EXISTING=0
+export SKIP_EXISTING="${RESUME}"
 
 if [[ "${DRY_RUN}" != "0" && "${DRY_RUN}" != "1" ]]; then
   echo "DRY_RUN must be 0 or 1" >&2
+  exit 2
+fi
+if [[ "${RESUME}" != "0" && "${RESUME}" != "1" ]]; then
+  echo "RESUME must be 0 or 1" >&2
   exit 2
 fi
 if [[ ! -f "${GRID_PATH}" || ! -f "${BASELINES_PATH}" ]]; then
@@ -39,7 +44,7 @@ if ! flock -n 9; then
   exit 3
 fi
 
-"${PYTHON}" - "${GRID_PATH}" "${BASELINES_PATH}" "${REPO_ROOT}" <<'PY'
+"${PYTHON}" - "${GRID_PATH}" "${BASELINES_PATH}" "${REPO_ROOT}" "${RESUME}" <<'PY'
 import sys
 from pathlib import Path
 from tools.summarize_pseudo_label_weighted_w1 import (
@@ -49,7 +54,7 @@ from tools.summarize_pseudo_label_weighted_w1 import (
     verify_step0_checkpoints,
 )
 
-grid, baselines, repo_root = sys.argv[1:]
+grid, baselines, repo_root, resume = sys.argv[1:]
 rows = read_and_validate_grid(grid)
 verified_baselines = load_and_verify_baselines(baselines, repo_root=Path(repo_root))
 verify_step0_checkpoints(
@@ -57,7 +62,8 @@ verify_step0_checkpoints(
     repo_root=Path(repo_root),
     baselines=verified_baselines,
 )
-verify_output_paths_absent(rows, repo_root=Path(repo_root))
+if resume != "1":
+    verify_output_paths_absent(rows, repo_root=Path(repo_root))
 print("[weighted-w1] grid, W0, baselines, step0 hashes, and output paths verified")
 PY
 
@@ -71,6 +77,7 @@ fi
 echo "[weighted-w1] branch=$(git rev-parse --abbrev-ref HEAD)"
 echo "[weighted-w1] commit=$(git rev-parse HEAD)"
 echo "[weighted-w1] dirty=$([[ -n "$(git status --porcelain)" ]] && echo true || echo false)"
+echo "[weighted-w1] resume=$([[ "${RESUME}" == "1" ]] && echo true || echo false)"
 echo "[weighted-w1] free_kib=${available_kib}"
 echo "[weighted-w1] locked_runtime=RHL_NORM=${RHL_NORM} RHL_SEED=${RHL_SEED} SEGACIL_PIN_MEMORY=${SEGACIL_PIN_MEMORY}"
 nvidia-smi
