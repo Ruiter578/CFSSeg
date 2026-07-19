@@ -10,6 +10,7 @@ export CUDA_MPS_PIPE_DIRECTORY="${CUDA_MPS_PIPE_DIRECTORY:-/home/linyichen/.mps_
 export TMPDIR="${TMPDIR:-/root/2TStorage/tmp}"
 mkdir -p "$CUDA_MPS_PIPE_DIRECTORY" "$TMPDIR"
 
+PYTHON="${PYTHON:-python}"
 DATA_ROOT="${DATA_ROOT:-/root/2TStorage/lyc/SegACIL/data_root/VOC2012}"
 MODEL="${MODEL:-deeplabv3_resnet101}"
 LR="${LR:-0.01}"
@@ -60,7 +61,7 @@ run_case() {
     local subpath="${RUN_PREFIX}_${case_name}_${rhl_init}_${rhl_scale_mode}_seed${RHL_SEED}_bs${batch_size}"
     local log_path="${LOG_DIR}/${case_name}_bs${batch_size}.log"
     local -a cmd=(
-        python train.py
+        "$PYTHON" train.py
         --data_root "$DATA_ROOT"
         --model "$MODEL"
         --lr "$LR"

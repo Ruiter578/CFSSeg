@@ -1,7 +1,7 @@
 # SegACIL 当前代码库审查报告
 
-> 日期：2026-06-17  
-> 范围：当前 `feature/rhl-se-boa-p0-p1` 工作区，重点审查本轮 P0/P1 改动与原 SegACIL 训练、评估、脚本、checkpoint 链路。  
+> 日期：2026-06-17
+> 范围：当前 `feature/rhl-se-boa-p0-p1` 工作区，重点审查本轮 P0/P1 改动与原 SegACIL 训练、评估、脚本、checkpoint 链路。
 > 说明：以下“建议调整”未直接修改，按用户要求只在报告中阐述。
 
 ## 1. 总体结论
@@ -93,4 +93,3 @@ raise NotImplementedError(f"Unsupported dataset: {dataset}")
 2. 若 BOA 任一单模型达到 `+0.10 all` 或 `+0.30 new`，再考虑 BOA 多 seed 或 BOA + RHL-SE。
 3. 若 BOA 只改善 sparsity / Gram 统计但 mIoU 不动，优先分析 gamma 相对尺度，不要立即扩散到更多 scale。
 4. 在下一轮代码工作中补 train/eval 的 `max_*_batches` 调试参数，提高每次 agent 改动后的验收质量。
-

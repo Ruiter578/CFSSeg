@@ -1,8 +1,8 @@
 # P0+P1 RHL-SE / BOA-RHL 代码实现与审查报告
 
-> 日期：2026-06-17  
-> 分支：`feature/rhl-se-boa-p0-p1`  
-> 基线提交：`a2cbc4e`  
+> 日期：2026-06-17
+> 分支：`feature/rhl-se-boa-p0-p1`
+> 基线提交：`a2cbc4e`
 > 本轮提交：`e79dcd2`、`4437b3d`、`8e0861f`
 
 ## 1. 执行范围
@@ -127,4 +127,3 @@ coderabbit auth status -> command not found
 1. `utils/parser.py` 中 `rhl_seed` 注释仍偏向 RHL-SE 语境；现在 `rhl_seed=-1` 的真实含义是“使用全局 RNG 状态”，不再意味着强制 baseline 初始化。建议后续把注释改成同时覆盖 BOA-RHL。
 2. 当前 full train smoke 受限于项目没有 `--max-train-batches` / `--max-val-batches` 参数，无法按 AGENTS 规范做 1 epoch 小批量训练验证。建议后续新增调试型 batch 限制参数。
 3. BOA 的 `legacy` scale 是按原 Linear uniform 初始化的期望行能量匹配，理论上合理；最终是否提升仍必须由 BOA-0/1/2/3 实验判断，不能只靠初始化统计定性。
-

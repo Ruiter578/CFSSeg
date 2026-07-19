@@ -9,6 +9,7 @@ export CUDA_MPS_PIPE_DIRECTORY="${CUDA_MPS_PIPE_DIRECTORY:-/home/linyichen/.mps_
 export TMPDIR="${TMPDIR:-/root/2TStorage/tmp}"
 mkdir -p "$CUDA_MPS_PIPE_DIRECTORY" "$TMPDIR"
 
+PYTHON="${PYTHON:-python}"
 DATA_ROOT="${DATA_ROOT:-/root/2TStorage/lyc/SegACIL/data_root/VOC2012}"
 RUN_NAME="${RUN_NAME:-$(date +%Y%m%d_%H%M%S)_rhl_se_val_driven}"
 OUT_DIR="${OUT_DIR:-logs/rhl_se_val_driven/${RUN_NAME}}"
@@ -51,7 +52,7 @@ COMMON_ARGS=(
 )
 
 SEARCH_CMD=(
-    python tools/search_rhl_class_weights.py
+    "$PYTHON" tools/search_rhl_class_weights.py
     --ckpts "${CKPT_LIST[@]}"
     "${COMMON_ARGS[@]}"
     --objective "$OBJECTIVE"
@@ -60,7 +61,7 @@ SEARCH_CMD=(
 )
 
 EVAL_CMD=(
-    python tools/eval_rhl_ensemble.py
+    "$PYTHON" tools/eval_rhl_ensemble.py
     --ckpts "${CKPT_LIST[@]}"
     "${COMMON_ARGS[@]}"
     --mode test
