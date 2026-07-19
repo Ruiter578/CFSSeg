@@ -426,12 +426,34 @@ class PseudoLabelWeightedW1Tests(unittest.TestCase):
             check=False,
         )
 
+        missing_rows = []
+        for row in read_and_validate_grid(GRID):
+            output_dir = (
+                REPO_ROOT
+                / "checkpoints"
+                / row["subpath"]
+                / "voc"
+                / row["task"]
+                / row["setting"]
+                / "step1"
+            )
+            if not list(output_dir.glob("test_results_*.json")):
+                missing_rows.append(row)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout.count("bash tools/run_adaptive_pseudo_label.sh"), 2)
-        self.assertEqual(result.stdout.count("PSEUDO_LABEL_WEIGHTING=confidence "), 1)
+        self.assertEqual(
+            result.stdout.count("bash tools/run_adaptive_pseudo_label.sh"),
+            len(missing_rows),
+        )
+        self.assertEqual(
+            result.stdout.count("PSEUDO_LABEL_WEIGHTING=confidence "),
+            sum(row["weighting"] == "confidence" for row in missing_rows),
+        )
         self.assertEqual(
             result.stdout.count("PSEUDO_LABEL_WEIGHTING=confidence_margin "),
-            1,
+            sum(
+                row["weighting"] == "confidence_margin"
+                for row in missing_rows
+            ),
         )
         self.assertIn("[weighted-w1] dry-run complete", result.stdout)
         self.assertIn(
