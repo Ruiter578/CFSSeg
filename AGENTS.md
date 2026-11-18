@@ -17,8 +17,8 @@
 ```text
 AI_docs/课题Home.md
 AI_docs/2026-10-24_项目重启交接/00_阅读入口.md
-AI_docs/2026-10-24_项目重启交接/01_Git分支与代码进度核查.md
-AI_docs/2026-10-24_项目重启交接/03_方法与实验完整回顾.md
+AI_docs/代码改动报告/2026-11-19_Git分支整合与项目整理报告.md
+AI_docs/2026-10-24_项目重启交接/03_方法与实验完整回顾_修订版.md
 ```
 
 ## 2. 当前技术基线
@@ -32,7 +32,9 @@ AI_docs/2026-10-24_项目重启交接/03_方法与实验完整回顾.md
 - V3+ golden replay 已复现 `Mean IoU = 0.7035645831`。
 - 原 DeepLabV3 路径已有单元测试保护，不应被后续 RHL / 伪标签改动破坏。
 - clean holdout 的当前起点是 V3 + decoder、buffer8224、gamma1、norm none；不可与旧官方val-as-test约70%的结果横比。
-- 两个当前worktree均缺模型权重；旧conda解释器路径不存在。执行前先恢复环境、checkpoint并核对hash，历史测试报告不等于当前验证通过。
+- 当前工作目录未保存历史模型权重。执行实验前先恢复checkpoint并核对hash。
+- 维护测试环境为`/data2/lyc/.local/venvs/segacil-review/bin/python`（Python3.10、PyTorch2.8）；环境路径按服务器实际情况选择，不再依赖旧miniconda路径。
+- `BASE_SUBPATH`默认等于本次SUBPATH，复用旧step0须显式设置，并确认模型架构一致；`PRETRAINED_BACKBONE=""`可关闭预训练。
 
 关键代码位置：
 
@@ -76,7 +78,9 @@ export TMPDIR=/root/2TStorage/tmp
 
 ## 4. Git 和 worktree
 
-- 当前注册worktree：`/data2/lyc/SegACIL`（main）与 `/data2/lyc/SegACIL_rhl_next`（feature/rhl-next）；每次任务仍须重新检查 `git worktree list`。
+- 当前唯一worktree为`/data2/lyc/SegACIL`（main）；feature/rhl-next保留分支，worktree已移除。每次任务重新检查git worktree list。
+- 活动分支只保留main与feature/rhl-next。已退出的V3+ control、adaptive-pseudo-label及P0/P1使用`archive/<原分支短名>-2026-11-19`标签与`AI_docs/早期旧分支文档/`追溯，禁止将历史快照描述成实时状态。
+- 用户要求下一轮再决定rhl-next归档/合并；本轮建议归档，尚未执行该分支的清理。
 - TRS 服务器通常只有一个 checkout：`/TRS-SAS/linwei/SegACIL`，通过 `git switch` 切换分支，工作区内容会随分支变化。
 - 新方法开发不要直接长期写在 `main`；从最新 `main` 新开 feature 分支，必要时新建 sibling worktree。
 - 清理分支/worktree前保存独有代码、文档、忽略的实验产物及可达Git引用；旧V3+ worktree当前已不在注册列表。
@@ -132,7 +136,7 @@ bash run.sh
 
 ## 6. RHL 和伪标签边界
 
-- 自适应hard threshold与W1可靠性加权研究线已冻结；不默认继续W2/W3、q/min_conf/weight小网格。完整代码留在 `origin/feature/adaptive-pseudo-label`，main只归档结论。
+- 自适应hard threshold与W1可靠性加权研究线已冻结；不默认继续W2/W3、q/min_conf/weight小网格。完整源码在`archive/adaptive-pseudo-label-2026-11-19`，main保存文档与结论，不合入该分支的训练实现。
 - RHL续作在 `feature/rhl-next`；BOA单点弱正向不等于多seed复核完成。PGH/PowerNorm/CA-C-RLS多数仍是提案。
 - RHL 的关键路径是 `RandomBuffer -> RecursiveLinear`，改动应尽量不破坏 C-RLS 闭式更新主公式。
 - RHL-SE 需要区分 `random_seed` 与 `rhl_seed`：只改变 RHL 子空间时，不能混入 dataloader、augmentation、全局随机性的变化。
@@ -157,7 +161,7 @@ bash run.sh
 Python 改动至少运行：
 
 ```bash
-/home/linyichen/miniconda3/envs/segacil/bin/python -m py_compile <changed_python_files>
+python -m py_compile <changed_python_files>
 ```
 
 脚本改动至少运行：
@@ -169,7 +173,7 @@ bash -n <changed_shell_files>
 本项目已有单元测试时，运行：
 
 ```bash
-/home/linyichen/miniconda3/envs/segacil/bin/python -m unittest discover -s tests -p 'test*.py' -v
+OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 CUDA_VISIBLE_DEVICES='' python -m unittest discover -s tests -p 'test*.py' -v
 ```
 
 必须检查中文弯引号进入可执行文本：

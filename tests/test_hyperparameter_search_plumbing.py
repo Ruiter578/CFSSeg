@@ -14,6 +14,13 @@ from utils.run_manifest import write_run_manifest
 
 
 class HyperparameterSearchPlumbingTests(unittest.TestCase):
+    def test_all_ignore_pixels_leave_recursive_statistics_unchanged(self):
+        layer = RecursiveLinear(2, gamma=1, dtype=torch.double)
+        initial_R, initial_weight = layer.R.clone(), layer.weight.clone()
+        layer.fit(torch.ones(1, 4, 2, dtype=torch.double), torch.full((1, 2, 2), 255))
+        torch.testing.assert_close(layer.R, initial_R)
+        torch.testing.assert_close(layer.weight, initial_weight)
+
     def test_config_defaults_preserve_existing_optimizer_and_tail_behavior(self):
         opts = Config()
 

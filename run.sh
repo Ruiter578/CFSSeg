@@ -5,11 +5,11 @@ cd "$(dirname "$0")"
 
 export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
 export CUDA_MPS_PIPE_DIRECTORY="${CUDA_MPS_PIPE_DIRECTORY:-/home/linyichen/.mps_bypass}"
-export TMPDIR="${TMPDIR:-/root/2TStorage/tmp}"
+export TMPDIR="${TMPDIR:-/tmp}"
 export PYTHONUNBUFFERED="${PYTHONUNBUFFERED:-1}"
 
-PYTHON="${PYTHON:-python}"
-DATA_ROOT="${DATA_ROOT:-/root/2TStorage/lyc/SegACIL/data_root/VOC2012}"
+PYTHON="${PYTHON:-python3}"
+DATA_ROOT="${DATA_ROOT:-$PWD/data_root/VOC2012}"
 MODEL="${MODEL:-deeplabv3_resnet101}"
 AIR_FEATURE_SOURCE="${AIR_FEATURE_SOURCE:-auto}"
 LR="${LR:-0.01}"
@@ -20,15 +20,16 @@ DATASET="${DATASET:-voc}"
 TASK="${TASK:-15-5}"
 LR_POLICY="${LR_POLICY:-poly}"
 SUBPATH="${SUBPATH:-$(date +%Y%m%d)_${MODEL}}"
-# The default checkpoint belongs to the default V3 model. Override BASE_SUBPATH
-# whenever MODEL points at a different architecture.
-BASE_SUBPATH="${BASE_SUBPATH:-20260606}"
+# A new run reads its own step0 by default, for both V3 and V3+.
+# Set BASE_SUBPATH explicitly when reusing an existing step0 experiment.
+BASE_SUBPATH="${BASE_SUBPATH:-$SUBPATH}"
 METHOD="${METHOD:-acil}"
 SETTING="${SETTING:-sequential}"
 TRAIN_EPOCH="${TRAIN_EPOCH:-50}"
 CKPT="${CKPT:-}"
 CURR_ITRS="${CURR_ITRS:-0}"
-PRETRAINED_BACKBONE="${PRETRAINED_BACKBONE:---pretrained_backbone}"
+PRETRAINED_BACKBONE="${PRETRAINED_BACKBONE---pretrained_backbone}"
+read -r -a PRETRAINED_BACKBONE_ARG <<< "$PRETRAINED_BACKBONE"
 BUFFER="${BUFFER:-8192}"
 OUTPUT_STRIDE="${OUTPUT_STRIDE:-8}"
 GAMMA="${GAMMA:-1}"
@@ -49,6 +50,11 @@ SPECIAL_BATCH_SIZE="${SPECIAL_BATCH_SIZE:-32}"
 START_STEP="${START_STEP:-1}"
 END_STEP="${END_STEP:-1}"
 STEP_INCREMENT="${STEP_INCREMENT:-1}"
+
+if ! [[ "$START_STEP" =~ ^[0-9]+$ && "$END_STEP" =~ ^[0-9]+$ && "$STEP_INCREMENT" =~ ^[1-9][0-9]*$ ]] || ((START_STEP > END_STEP)); then
+    echo "START_STEP/END_STEP must be nonnegative and ordered; STEP_INCREMENT must be positive." >&2
+    exit 2
+fi
 
 BASE_SUBPATH_ARG=()
 if [[ -n "$BASE_SUBPATH" ]]; then
@@ -120,7 +126,7 @@ do
         "${CURR_ITRS_ARG[@]}" \
         --method "$METHOD" \
         --setting "$SETTING" \
-        $PRETRAINED_BACKBONE \
+        "${PRETRAINED_BACKBONE_ARG[@]}" \
         --crop_val \
         --train_epoch "$TRAIN_EPOCH" \
         --gamma "$GAMMA" \

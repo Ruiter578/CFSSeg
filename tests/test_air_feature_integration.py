@@ -31,6 +31,48 @@ class AirFeatureIntegrationTests(unittest.TestCase):
             FakeBackbone(), classifier, bn_freeze=False
         ).eval()
 
+    def test_air_preserves_rectangular_feature_shape(self):
+        class RectangularBackbone(nn.Module):
+            def forward(self, x):
+                return {'out': torch.ones(x.shape[0], 2048, 3, 5),
+                        'low_level': torch.ones(x.shape[0], 256, 7, 9)}
+
+        backbone = _SimpleSegmentationModel(
+            RectangularBackbone(), DeepLabHeadV3Plus(2048, 256, [1, 15]), bn_freeze=False,
+        ).eval()
+        air = AIR(backbone_output=256, backbone=backbone, buffer_size=8,
+                  gamma=1, feature_source='aspp_up', device='cpu', rhl_seed=1)
+        images = torch.randn(2, 3, 33, 49)
+        labels = torch.ones(2, 33, 49, dtype=torch.long)
+        air.fit(images, labels)
+        air.update()
+        output = air(images)
+        self.assertEqual(tuple(output.shape), (2, 7, 9, 2))
+        self.assertTrue(torch.isfinite(output).all())
+
+    def test_both_model_factories_support_step0_backward_and_analytic_fit(self):
+        for name, source in [('deeplabv3_resnet50', 'decoder'), ('deeplabv3plus_resnet50', 'aspp_up'),
+                             ('deeplabv3_resnet101', 'decoder'), ('deeplabv3plus_resnet101', 'aspp_up')]:
+            with self.subTest(model=name):
+                model = DeepLabModelFactory().model_map[name](
+                    num_classes=[1, 1], pretrained_backbone=False, output_stride=8,
+                ).train()
+                optimizer = torch.optim.SGD(model.parameters(), lr=0.001)
+                images = torch.randn(2, 3, 17, 17)
+                logits, _ = model(images)
+                loss = logits.square().mean()
+                loss.backward()
+                self.assertTrue(torch.isfinite(model.classifier.head[0].weight.grad).all())
+                optimizer.step()
+                model.eval()
+                air = AIR(backbone_output=256, backbone=model, buffer_size=8, gamma=1,
+                          feature_source=model.resolve_air_feature_source('auto'),
+                          device='cpu', rhl_seed=1)
+                air.fit(images, torch.ones(2, 17, 17, dtype=torch.long))
+                air.update()
+                self.assertEqual(air.feature_source, source)
+                self.assertEqual(air(images).shape[-1], 2)
+
     def test_v3plus_standard_forward_and_feature_shapes(self):
         model = self.make_model(DeepLabHeadV3Plus(2048, 256, [1, 15]))
 

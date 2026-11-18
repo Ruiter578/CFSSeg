@@ -114,7 +114,7 @@ def tensor_to_chw(tensor, labels_shape, n_classes):
 
 def load_model_cpu(path):
     # 默认先把 checkpoint 加载到 CPU，避免 K 个 RHL-SE 成员同时占满显存。
-    checkpoint = torch.load(path, map_location="cpu")
+    checkpoint = torch.load(path, map_location="cpu", weights_only=False)
     model = checkpoint["model_architecture"]
     model.load_state_dict(checkpoint["model_state"])
     model.cpu().eval()

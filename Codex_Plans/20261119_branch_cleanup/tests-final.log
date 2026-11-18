@@ -1,0 +1,65 @@
+test_air_preserves_rectangular_feature_shape (test_air_feature_integration.AirFeatureIntegrationTests) ... ok
+test_air_uses_resolved_source_and_preserves_rhl_options (test_air_feature_integration.AirFeatureIntegrationTests) ... ok
+test_auto_source_is_model_described (test_air_feature_integration.AirFeatureIntegrationTests) ... ok
+test_bga_preserves_decoder_air_contract (test_air_feature_integration.AirFeatureIntegrationTests) ... ok
+test_both_model_factories_support_step0_backward_and_analytic_fit (test_air_feature_integration.AirFeatureIntegrationTests) ... ok
+test_factory_defaults_accept_integer_num_classes (test_air_feature_integration.AirFeatureIntegrationTests) ... ok
+test_legacy_air_checkpoint_defaults_to_decoder (test_air_feature_integration.AirFeatureIntegrationTests) ... ok
+test_missing_air_interface_fails_clearly (test_air_feature_integration.AirFeatureIntegrationTests) ... ok
+test_parser_defaults_to_auto_and_accepts_explicit_source (test_air_feature_integration.AirFeatureIntegrationTests) ... ok
+test_resnet_v3plus_factory_and_separable_conv_path (test_air_feature_integration.AirFeatureIntegrationTests) ... ok
+test_resumed_air_source_rejects_explicit_mismatch (test_air_feature_integration.AirFeatureIntegrationTests) ... ok
+test_train_returns_model_when_bn_is_not_frozen (test_air_feature_integration.AirFeatureIntegrationTests) ... ok
+test_unsupported_source_fails_instead_of_aliasing (test_air_feature_integration.AirFeatureIntegrationTests) ... ok
+test_v3_forward_matches_legacy_decoder_math (test_air_feature_integration.AirFeatureIntegrationTests) ... ok
+test_v3plus_standard_forward_and_feature_shapes (test_air_feature_integration.AirFeatureIntegrationTests) ... ok
+test_checkpoint_load_deserializes_project_model_on_cpu (test_ckpt.CheckpointTests) ... ok
+test_save_ckpt_creates_missing_parent_directories (test_ckpt.CheckpointTests) ... ok
+test_all_ignore_pixels_leave_recursive_statistics_unchanged (test_hyperparameter_search_plumbing.HyperparameterSearchPlumbingTests) ... ok
+test_config_defaults_preserve_existing_optimizer_and_tail_behavior (test_hyperparameter_search_plumbing.HyperparameterSearchPlumbingTests) ... ok
+test_evaluation_mode_dispatch_and_result_prefix (test_hyperparameter_search_plumbing.HyperparameterSearchPlumbingTests) ... ok
+test_manifest_records_search_plumbing_values (test_hyperparameter_search_plumbing.HyperparameterSearchPlumbingTests) ... ok
+test_optimizer_uses_explicit_backbone_and_classifier_learning_rates (test_hyperparameter_search_plumbing.HyperparameterSearchPlumbingTests) ... ok
+test_recursive_linear_tail_epsilon_controls_new_class_prior (test_hyperparameter_search_plumbing.HyperparameterSearchPlumbingTests) ... ok
+test_git_commit_falls_back_when_repository_metadata_is_unavailable (test_run_manifest.RunManifestTests) ... ok
+test_git_dirty_probe_uses_timeout_and_falls_back_when_unavailable (test_run_manifest.RunManifestTests) ... ok
+test_manifest_accepts_plain_namespace_options (test_run_manifest.RunManifestTests) ... ok
+test_manifest_preserves_existing_file_when_output_dir_is_reused (test_run_manifest.RunManifestTests) ... ok
+test_manifest_records_complete_args_command_git_runtime_and_paths (test_run_manifest.RunManifestTests) ... ok
+test_manifest_records_model_source_rhl_and_checkpoint_hash (test_run_manifest.RunManifestTests) ... ok
+test_safe_manifest_write_returns_none_when_metadata_write_fails (test_run_manifest.RunManifestTests) ... ok
+test_step0_loader_options_do_not_mutate_live_step (test_run_manifest.RunManifestTests) ... ok
+test_default_and_optional_model_keep_their_own_step0 (test_runner_contract.RunnerContractTests) ... ok
+test_explicit_existing_base_is_preserved (test_runner_contract.RunnerContractTests) ... ok
+test_trs_and_rhl_wrappers_forward_model_and_new_protocol_options (test_runner_contract.RunnerContractTests) ... ok
+test_zero_step_increment_stops_before_launching (test_runner_contract.RunnerContractTests) ... ok
+test_resume_step0_checkpoint_restores_model_optimizer_and_best_score (test_step0_resume.Step0ResumeTests) ... ok
+test_short_step0_saves_before_first_validation (test_step0_resume.Step0ResumeTests) ... ok
+test_step0_resume_rejects_completed_iterations_without_checkpoint (test_step0_resume.Step0ResumeTests) ... ok
+test_step0_resume_rejects_negative_completed_iterations (test_step0_resume.Step0ResumeTests) ... ok
+test_step0_scheduler_resume_uses_completed_iterations (test_step0_resume.Step0ResumeTests) ... ok
+test_step1_uses_best_step0_or_available_final_checkpoint (test_step0_resume.Step0ResumeTests) ... ok
+test_complete_and_pending_rows (test_summarize_v3plus_air_results.SummarizeAirResultsTests) ... ok
+test_parser_reads_image_id_and_zero_based_class_tokens (test_voc_tuning_split.VocTuningSplitTests) ... ok
+test_split_covers_each_observed_foreground_class_when_capacity_allows (test_voc_tuning_split.VocTuningSplitTests) ... ok
+test_split_is_deterministic_disjoint_and_has_exact_size (test_voc_tuning_split.VocTuningSplitTests) ... ok
+test_tight_split_repairs_greedy_choice_for_maximum_class_coverage (test_voc_tuning_split.VocTuningSplitTests) ... ok
+test_write_split_creates_plain_id_list_and_metadata (test_voc_tuning_split.VocTuningSplitTests) ... ok
+test_training_exclusion_removes_only_holdout_ids (test_voc_validation_contract.VocValidationContractTests) ... ok
+test_validation_ids_must_be_excluded_from_training (test_voc_validation_contract.VocValidationContractTests) ... ok
+test_validation_list_requires_training_exclusion (test_voc_validation_contract.VocValidationContractTests) ... ok
+
+----------------------------------------------------------------------
+Ran 50 tests in 9.314s
+
+OK
+Category components: [1, 15]
+load checkpoint from  project.pth
+load checkpoint from  /tmp/tmpvxme80n0/missing/step0/final.pth
+[warning] failed to write run_manifest.json: read-only output
+Step0 training resumed from /tmp/tmpud2xb4q3/step0.pth
+[15-5 / step 0] Epoch 0, Itrs 0/1, Loss=1.0834, StdLoss=1.0834, Time=1.19 ms, LR=0.00100000
+train epoch : 50 , iterations : 50 , val_interval : 100
+Loading step0 checkpoint from base_subpath 'base': checkpoints/base/voc/15-5/sequential/step0/deeplabv3plus_resnet101_voc_15-5_step_0_sequential.pth
+train epoch : 50 , iterations : 50 , val_interval : 100
+Loading step0 checkpoint from base_subpath 'base': checkpoints/base/voc/15-5/sequential/step0/final.pth

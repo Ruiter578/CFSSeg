@@ -94,7 +94,8 @@ class AIR(nn.Module):
     
     @torch.no_grad()
     def forward(self, X):
-        return self.analytic_linear(self.feature_expansion(X))
+        features = self.feature_expansion(X)
+        return self.analytic_linear(features, spatial_shape=(self.H, self.W))
     
     @torch.no_grad()
     def fit(self, X, y, *args, **kwargs):
@@ -243,6 +244,11 @@ class Trainer(object):
         # previous step checkpoint
         if self.opts.curr_step <= 1:  
             self.ckpt = self.ckpt_str_prev % (self.opts.model, self.opts.dataset, self.opts.task, self.opts.curr_step - 1)
+            # Short step0 runs may finish before the first validation, in which
+            # case final.pth exists but no validation-best checkpoint was saved.
+            final_step0 = self.root_path_prev + "final.pth"
+            if self.opts.curr_step == 1 and not os.path.isfile(self.ckpt) and os.path.isfile(final_step0):
+                self.ckpt = final_step0
         elif self.opts.curr_step > 1:
             self.ckpt = self.root_path_prev + "final.pth"
         if self.opts.curr_step == 1 and self.opts.base_subpath:
@@ -266,7 +272,7 @@ class Trainer(object):
         if not os.path.isfile(ckpt_path):
             raise FileNotFoundError(f"Checkpoint file '{ckpt_path}' does not exist.")
 
-        checkpoint = torch.load(ckpt_path, map_location=torch.device("cpu"))
+        checkpoint = torch.load(ckpt_path, map_location=torch.device("cpu"), weights_only=False)
         model_state = checkpoint.get("model_state")
         if model_state is None:
             raise KeyError(f"The checkpoint '{ckpt_path}' does not contain 'model_state'.")
@@ -319,7 +325,7 @@ class Trainer(object):
             raise FileNotFoundError(f"Checkpoint file '{self.ckpt}' does not exist.")
         try:
             # load checkpoint
-            checkpoint = torch.load(self.ckpt, map_location=torch.device('cpu'))
+            checkpoint = torch.load(self.ckpt, map_location=torch.device('cpu'), weights_only=False)
             model_state = checkpoint.get("model_state")
             if model_state is None:
                 raise KeyError("The checkpoint does not contain 'model_state' key.")
@@ -395,7 +401,7 @@ class Trainer(object):
                         self.best_score = curr_score
                         save_ckpt(self.ckpt_str % (self.opts.model, self.opts.dataset, self.opts.task, self.opts.curr_step), 
                                 self.model, self.optimizer, self.best_score)
-                save_ckpt(self.root_path + "final.pth", self.model, self.optimizer, curr_score)
+                save_ckpt(self.root_path + "final.pth", self.model, self.optimizer, self.best_score)
         elif self.opts.curr_step == 1:
             step0_opts = self.make_step0_loader_opts(self.opts)
             self.train_loader0, self.val_loader0, self.test_loader0 = init_dataloader(step0_opts)

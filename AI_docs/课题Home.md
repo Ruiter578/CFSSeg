@@ -1,49 +1,42 @@
 # SegACIL / CFSSeg 当前入口
 
-状态日期：2026-10-24。完整交接从 [阅读入口](2026-10-24_项目重启交接/00_阅读入口.md) 开始。本页只维护当前事实；7月历史Home仍可从Git版本恢复。
+状态日期：2026-11-19。代码使用方式见[项目README](../README.md)，本轮处理见[Git整合与修复报告](代码改动报告/2026-11-19_Git分支整合与项目整理报告.md)。
 
-## 任务与决策
+## 分支与工作目录
 
-- 主要对象仍是2D类增量语义分割、冻结特征、RHL与解析更新。
-- 用户已明确不再要求集成学习；暂停RHL-SE扩展、SE2.0与Snapshot，不删除历史代码与证据。
-- 自适应类别hard threshold和W1简单可靠性加权均已完成止损，W2/W3不默认继续。
-- 联邦持续分割是候选路线，尚无本仓代码/实验；AFL、AFCL、FISS已存在，必须先明确新增研究问题。
-- 新人先读 [方法速览](2026-10-24_项目重启交接/04_方法与实验速览.md)，路线讨论读 [后续规划](2026-10-24_项目重启交接/05_联邦持续学习与后续研究规划.md)。
+| 对象 | 当前用途 |
+| --- | --- |
+| main | 双模型训练、AIR解析学习、clean validation和归档入口 |
+| feature/rhl-next | 保留BOA/RHL续作代码，本轮尚未合并或归档；对应worktree已移除 |
+| /data2/lyc/SegACIL | 唯一活动worktree，main |
+| 早期V3+、伪标签、P0/P1 | [旧分支文档](早期旧分支文档/README.md)和archive标签；退出活动分支列表 |
 
-## 仓库与环境
+V3+ control历史已并入main；其旧runner、负实验class-cap及过时接口保存在归档中。伪标签完整实现没有合入main，main仍保留原有固定伪标签路径与既有历史总结。
 
-| 对象 | 状态 |
-|---|---|
-| 主目录 | /data2/lyc/SegACIL，main，核查时HEAD=087fa5e |
-| 第二worktree | /data2/lyc/SegACIL_rhl_next，feature/rhl-next，HEAD=804172c |
-| 伪标签归档 | 远端85d7ea1及tag adaptive-pseudo-label-w1-frozen-20260719；本地旧分支落后17提交 |
-| 老control/P0-P1分支 | 保留历史来源，不作为当前开发起点 |
-| 模型权重 | 两个checkout均未找到.pth/.pt/.ckpt，需恢复并核对manifest hash |
-| 运行环境 | 旧conda路径不存在；系统python3没有torch/numpy；启动实验前先恢复 |
-| 3D | main已有CFSSeg-code3D与S3DIS summary，暂作旁线归档 |
+## 当前代码约定
 
-完整清单见 [Git与代码核查](2026-10-24_项目重启交接/01_Git分支与代码进度核查.md)。旧A100/TRS路径是来源记录，不是当前机器可用路径。
+- `MODEL=deeplabv3_resnet101`为默认，`MODEL=deeplabv3plus_resnet101`为可选升级。
+- `AIR_FEATURE_SOURCE=auto`：V3→decoder，V3+→aspp_up。
+- 新run默认读取自身step0；复用历史step0必须显式设置BASE_SUBPATH，并匹配V3/V3+架构。
+- TRS与RHL归一化脚本共享run.sh的模型、验证与参数转发逻辑。
+- 项目checkpoint包含完整模型对象；读取使用CPU映射和显式完整反序列化。
+- 当前没有可直接续跑的历史模型权重。维护测试使用本机独立环境`/data2/lyc/.local/venvs/segacil-review`，不改动其他课题的环境。
 
-## 实验基线与最后进度
+## 研究进度
 
-| 谱系 | 结果 | 注意 |
-|---|---|---|
-| 历史V3 15-5 sequential | all69.4606/69.5598% | 原始JSON可读；官方VOC val被代码命名为test |
-| 历史V3 15-1最终step5 | 1128=68.9464%；1128_trs=69.5079% | 以JSON路径为准 |
-| 历史V3+ + aspp_up | all70.3565% | 主线已接入，golden replay是历史报告；当前缺原权重/结果 |
-| 当前clean V3 | decoder、buffer8224、gamma1、norm none | 10%训练holdout，所有训练step排除；与历史约70%不可横比 |
-| clean E1.1 | decoder三seed均值59.6412%，aspp59.1228% | decoder胜出 |
-| 最后E1.2 | eps1e-3=59.7310%；eps0=59.7119%；eps1e-4=59.7143% | 两次新尝试无提升，已完成，不是待做 |
+| 已完成实验 | 结果与结论 |
+| --- | --- |
+| V3+ + aspp_up，15-5 sequential | 历史all 70.3565%；保留为可选架构 |
+| clean V3特征源比较 | decoder三seed均值59.6412%，aspp59.1228%；后续clean基线使用decoder |
+| 最新E1.2初始化ε | 1e-3=59.7310%，0=59.7119%，1e-4=59.7143%；减小ε无提升 |
+| 自适应类别阈值 | matched-global六组平均优势约0.0020 pp，归档 |
+| W1可靠性加权 | 平均优势0.0190/0.0339 pp，overlap略降，归档 |
+| BOA/RHL续作 | 正交单seed弱正向，反向成对退化，迁移后未补齐新多seed实验 |
 
-全部结果、证据等级与负结果解释见 [详细回顾](2026-10-24_项目重启交接/03_方法与实验完整回顾.md)。不得把文档报告值冒充本次原始重算或训练复现。
+精度结果与本轮代码检查分别记录；本轮未启动GPU训练。完整配置、old/new/all见[方法与实验回顾修订版](2026-10-24_项目重启交接/03_方法与实验完整回顾_修订版.md)。
 
-## 接手规则
+## 下一轮
 
-1. 先git status与git worktree list；未经要求不commit/push，不删除归档。
-2. 每个新实验独立SUBPATH，BASE_SUBPATH对应真实step0，不混用V3/V3+。
-3. 固定模型、AIR source、seed、RHL seed、buffer、gamma、norm、split与base hash。
-4. 主线原固定伪标签未实现归档分支完整step1路径；不能拿main直接复刻该分支15-5伪标签结果。
-5. 方法提案、代码已实现、实验已完成、机制已成立四者分开记录。
-6. 先修复可复跑性与协议，再选单模型或联邦路线；不要从过时五方法计划自动启动集成或W1后续网格。
+建议将feature/rhl-next整体归档：它混合了旧集成runner、BOA初始化与兼容元数据，尚没有稳定的新增精度收益。先保存独有文档和完整tag，再删除活动分支；若后续明确需要正交RHL，则从当前main单独提取该组件并做匹配对照。本轮保留该分支等待决定。
 
-文档重组按 [分类与迁移方案](2026-10-24_项目重启交接/02_文档价值与归档重构方案.md) 执行，本轮历史文件未移动。
+集成学习约束已取消；联邦持续分割仍是候选研究场景，尚未实现。新研究从当前main开独立feature分支，并沿用固定数据划分、独立SUBPATH及manifest。

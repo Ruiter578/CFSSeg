@@ -1,0 +1,5 @@
+{"type":"review_context","reviewType":"uncommitted","currentBranch":"main","baseBranch":"main","workingDirectory":"/data2/lyc/SegACIL_git_backups/2026-11-19/code-review"}
+{"type":"status","phase":"connecting","status":"connecting_to_review_service"}
+{"type":"error","errorType":"review","message":"Review failed: Your CodeRabbit session or Git provider access could not be authenticated. Run `coderabbit auth login`, then retry the review.\nPrevious local review has 1 stored finding. Run 'coderabbit review findings --dir \"/data2/lyc/SegACIL_git_backups/2026-11-19/code-review\"' to view them.","recoverable":false,"details":{}}
+Error: Your CodeRabbit session or Git provider access could not be authenticated. Run `coderabbit auth login`, then retry the review.
+Previous local review has 1 stored finding. Run 'coderabbit review findings --dir "/data2/lyc/SegACIL_git_backups/2026-11-19/code-review"' to view them.

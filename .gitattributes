@@ -1,0 +1,2 @@
+# Historical snapshots retain original whitespace so their Git blob hashes match.
+AI_docs/早期旧分支文档/** -whitespace

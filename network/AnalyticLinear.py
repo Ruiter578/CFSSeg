@@ -48,7 +48,7 @@ class AnalyticLinear(torch.nn.Linear, metaclass=ABCMeta):
         self.register_buffer("weight", weight)
     
     @torch.inference_mode()
-    def forward(self, X: torch.Tensor) -> torch.Tensor:
+    def forward(self, X: torch.Tensor, spatial_shape=None) -> torch.Tensor:
         B, HW, buffersize = X.shape 
         X = X.view(B * HW, buffersize)
         X = X.to(self.weight)
@@ -57,7 +57,8 @@ class AnalyticLinear(torch.nn.Linear, metaclass=ABCMeta):
             X = torch.cat((X, torch.ones(X.shape[0], 1).to(X)), dim=-1)
         P=X @ self.weight #B * HW, buffersize->B * HW, num_classes
         #B * HW, num_classes->B, H,W, num_classes
-        P = P.view(B, int(HW**0.5), int(HW**0.5), -1)
+        height, width = spatial_shape if spatial_shape is not None else (int(HW**0.5), int(HW**0.5))
+        P = P.view(B, height, width, -1)
 
         return P
 
@@ -122,6 +123,8 @@ class RecursiveLinear(AnalyticLinear):
         mask = y != 255  # 创建掩码，过滤掉标签为 255 的样本
         X = X[mask]      # 过滤掉对应的 X
         y = y[mask]      # 过滤掉对应的 y
+        if y.numel() == 0:
+            return
 
         X, y = X.to(self.weight), y.to(self.weight)
         num_targets = int(y.max()) + 1

@@ -1,6 +1,7 @@
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import torch
 from torch import nn
@@ -9,6 +10,15 @@ from utils.ckpt import load_ckpt, save_ckpt
 
 
 class CheckpointTests(unittest.TestCase):
+    def test_checkpoint_load_deserializes_project_model_on_cpu(self):
+        model = nn.Linear(2, 1)
+        with patch('utils.ckpt.torch.load', return_value={
+            'model_architecture': model, 'model_state': model.state_dict(),
+        }) as load:
+            loaded_model, _, _ = load_ckpt('project.pth')
+        self.assertIs(loaded_model, model)
+        load.assert_called_once_with('project.pth', map_location='cpu', weights_only=False)
+
     def test_save_ckpt_creates_missing_parent_directories(self):
         model = nn.Linear(2, 1)
 

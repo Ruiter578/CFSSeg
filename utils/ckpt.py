@@ -17,7 +17,8 @@ def save_ckpt(path, model, optimizer=None, best_score=None):
 
 
 def load_ckpt(path):
-    checkpoint = torch.load(path)
+    # Project checkpoints contain the full model object as well as its state.
+    checkpoint = torch.load(path, map_location="cpu", weights_only=False)
 
     model = checkpoint['model_architecture']
     

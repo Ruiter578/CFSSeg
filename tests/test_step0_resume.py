@@ -1,6 +1,8 @@
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import torch
 from torch import nn
@@ -8,9 +10,53 @@ from torch import nn
 from trainer.trainer import Trainer
 from utils.parser import Config
 from utils.scheduler import build_scheduler
+from utils.utils import AverageMeter
 
 
 class Step0ResumeTests(unittest.TestCase):
+    def test_step1_uses_best_step0_or_available_final_checkpoint(self):
+        root = 'checkpoints/base/voc/15-5/sequential/step0/'
+        named = root + 'deeplabv3plus_resnet101_voc_15-5_step_0_sequential.pth'
+        for best_exists in [True, False]:
+            with self.subTest(best_checkpoint=best_exists):
+                opts = Config(model='deeplabv3plus_resnet101', curr_step=1, task='15-5',
+                              setting='sequential', num_classes=[1, 15, 5],
+                              subpath='new', base_subpath='base')
+                def exists(path):
+                    return str(path).endswith('/final.pth') or best_exists
+                with patch('trainer.trainer.init_dataloader', return_value=([None], [], [])), \
+                     patch('trainer.trainer.mkdir'), patch('trainer.trainer.Logger'), \
+                     patch('trainer.trainer.os.path.isfile', side_effect=exists):
+                    trainer = Trainer(opts)
+                self.assertEqual(trainer.ckpt, named if best_exists else root + 'final.pth')
+
+    def test_short_step0_saves_before_first_validation(self):
+        class SmallSegmentationModel(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.conv = nn.Conv2d(3, 2, 1)
+
+            def forward(self, images):
+                return self.conv(images), {}
+
+        trainer = Trainer.__new__(Trainer)
+        trainer.opts = Config(curr_step=0, train_epoch=1, task='15-5')
+        trainer.device = 'cpu'
+        trainer.model = SmallSegmentationModel()
+        trainer.optimizer = torch.optim.SGD(trainer.model.parameters(), lr=0.01)
+        trainer.scheduler = torch.optim.lr_scheduler.StepLR(trainer.optimizer, 1)
+        trainer.criterion = nn.CrossEntropyLoss()
+        trainer.train_loader = [(torch.randn(2, 3, 4, 4), torch.zeros(2, 4, 4, dtype=torch.long), None)]
+        trainer.avg_loss, trainer.avg_time, trainer.avg_loss_std = (AverageMeter() for _ in range(3))
+        trainer.logger = SimpleNamespace(write_loss=lambda *args: None)
+        trainer.root_path = '/unused/'
+        trainer.best_score = -1
+        with patch('trainer.trainer.save_ckpt') as save:
+            trainer.train()
+        self.assertEqual(save.call_count, 1)
+        self.assertEqual(save.call_args.args[0], '/unused/final.pth')
+        self.assertEqual(save.call_args.args[3], -1)
+
     def test_resume_step0_checkpoint_restores_model_optimizer_and_best_score(self):
         source_model = nn.Linear(2, 1)
         target_model = nn.Linear(2, 1)
