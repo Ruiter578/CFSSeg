@@ -1,0 +1,84 @@
+{
+  "checked_date": "2026-10-25",
+  "browser": "Chromium via Playwright",
+  "checks": [
+    {
+      "name": "06_方法与实验交接.html：翻页、边界与键盘",
+      "status": "PASS",
+      "details": "5页；前后按钮与左右键"
+    },
+    {
+      "name": "06_方法与实验交接.html：目录锚点",
+      "status": "PASS",
+      "details": "全部可达"
+    },
+    {
+      "name": "06_方法与实验交接.html：打印展开",
+      "status": "PASS",
+      "details": "全部讲解页可见"
+    },
+    {
+      "name": "实验检索与下载",
+      "status": "PASS",
+      "details": "317条内嵌记录；来源筛选191/16/110；搜索、空结果、分页、21类详情、CSV下载通过；36条记录 / 总计317条（非独立实验数）"
+    },
+    {
+      "name": "06_方法与实验交接.html：移动端",
+      "status": "PASS",
+      "details": "390×844，无整页横向溢出；图与表格在容器内横向滚动"
+    },
+    {
+      "name": "07_联邦持续学习与研究路线.html：翻页、边界与键盘",
+      "status": "PASS",
+      "details": "5页；前后按钮与左右键"
+    },
+    {
+      "name": "07_联邦持续学习与研究路线.html：目录锚点",
+      "status": "PASS",
+      "details": "全部可达"
+    },
+    {
+      "name": "07_联邦持续学习与研究路线.html：打印展开",
+      "status": "PASS",
+      "details": "全部讲解页可见"
+    },
+    {
+      "name": "联邦概念交互与数学渲染",
+      "status": "PASS",
+      "details": "时间滑块、可见标签、两个闭式数值、3个KaTeX公式通过"
+    },
+    {
+      "name": "07_联邦持续学习与研究路线.html：移动端",
+      "status": "PASS",
+      "details": "390×844，无整页横向溢出；图与表格在容器内横向滚动"
+    },
+    {
+      "name": "无JavaScript阅读",
+      "status": "PASS",
+      "details": "两个页面均显示全部讲解页及完整正文"
+    },
+    {
+      "name": "methods-map：SVG文字边界",
+      "status": "PASS",
+      "details": "全部文字在画布内；截图供人工复核"
+    },
+    {
+      "name": "route-map：SVG文字边界",
+      "status": "PASS",
+      "details": "全部文字在画布内；截图供人工复核"
+    },
+    {
+      "name": "运行时错误与离线性",
+      "status": "PASS",
+      "details": "0个pageerror；0个HTTP(S)自动请求"
+    },
+    {
+      "name": "Markdown相对链接",
+      "status": "PASS",
+      "details": "主体、入口、设计与逐篇目录的本地链接全部存在"
+    }
+  ],
+  "errors": [],
+  "network_requests": [],
+  "screenshots": "/tmp/segacil-handoff-preview"
+}

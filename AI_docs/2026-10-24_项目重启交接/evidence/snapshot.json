@@ -1,0 +1,61 @@
+{
+  "audit_date": "2026-10-24",
+  "branches": [
+    {
+      "ref": "main",
+      "commit": "087fa5e2a64975e5f09bfce501e12c7485bdb63d",
+      "main_only": "0",
+      "ref_only": "0",
+      "head_date_subject": "2026-07-20T04:30:25+00:00 7.18 E1.2 初筛比较的是 analytic_tail_epsilon, 0和1e-4两组实验与1e-3baseline比较",
+      "ai_docs_md": 67
+    },
+    {
+      "ref": "feature/adaptive-pseudo-label",
+      "commit": "c9672f157ccd507546007bf093608571140b199b",
+      "main_only": "36",
+      "ref_only": "14",
+      "head_date_subject": "2026-07-09T20:42:37+00:00 7-9 document adaptive pseudo-label results",
+      "ai_docs_md": 62
+    },
+    {
+      "ref": "origin/feature/adaptive-pseudo-label",
+      "commit": "85d7ea1641563b2daba0f914d51d322048f23424",
+      "main_only": "36",
+      "ref_only": "31",
+      "head_date_subject": "2026-07-19T16:14:03+00:00 docs: freeze adaptive pseudo-label threshold route",
+      "ai_docs_md": 71
+    },
+    {
+      "ref": "origin/feature/deeplabv3plus-control",
+      "commit": "7fa27e03b6174729ae959a1e6df5e9726eb32287",
+      "main_only": "71",
+      "ref_only": "16",
+      "head_date_subject": "2026-06-24T14:34:02+00:00 docs: finalize DeepLabV3+ integration plan",
+      "ai_docs_md": 23
+    },
+    {
+      "ref": "origin/feature/rhl-next",
+      "commit": "804172c8ef705ef5ffe6acbb02bdc53c63962b58",
+      "main_only": "1",
+      "ref_only": "7",
+      "head_date_subject": "2026-07-19T16:37:11+00:00 docs: record scheme c migration review",
+      "ai_docs_md": 70
+    },
+    {
+      "ref": "origin/feature/rhl-se-boa-p0-p1",
+      "commit": "7701b1223ca0ec67a81cc18b3dc7bbd4d8d70159",
+      "main_only": "64",
+      "ref_only": "4",
+      "head_date_subject": "2026-06-17T21:46:57+00:00 docs: review rhl p0 p1 implementation",
+      "ai_docs_md": 34
+    }
+  ],
+  "unique_document_versions": 112,
+  "unique_document_paths": 97,
+  "metric_files": 191,
+  "local_model_weights_pth": 0,
+  "worktrees": "worktree /data2/lyc/SegACIL\nHEAD 087fa5e2a64975e5f09bfce501e12c7485bdb63d\nbranch refs/heads/main\n\nworktree /data2/lyc/SegACIL_rhl_next\nHEAD 804172c8ef705ef5ffe6acbb02bdc53c63962b58\nbranch refs/heads/feature/rhl-next\n\n",
+  "inventory_generation_status": " M AGENTS.md\n M \"AI_docs/\\350\\257\\276\\351\\242\\230Home.md\"\n M README.md\n?? \"AI_docs/2026-10-24_\\351\\241\\271\\347\\233\\256\\351\\207\\215\\345\\220\\257\\344\\272\\244\\346\\216\\245/\"\n",
+  "initial_worktree_observation": "审计开始时两个worktree均无tracked修改或普通untracked；此处生成状态已包含本次报告文件。",
+  "history_only_metric_files": 16
+}

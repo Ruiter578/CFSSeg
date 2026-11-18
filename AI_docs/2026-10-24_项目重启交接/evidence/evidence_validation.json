@@ -1,0 +1,23 @@
+{
+  "checked_date": "2026-10-25",
+  "status": "PASS",
+  "checks": {
+    "raw_current_git_blobs_and_summary_cells": 191,
+    "historical_git_blobs_and_summary_cells": 16,
+    "legacy_csv_rows": 110,
+    "per_class_values": 3983,
+    "document_versions_and_commit_paths": 112,
+    "embedded_html_records": 317
+  },
+  "clean_means": {
+    "decoder_pct": 59.641208298097176,
+    "aspp_pct": 59.12276250077923,
+    "difference_pp": 0.5184457973179448
+  },
+  "epsilon_deltas_pp": {
+    "R189": -0.019171795454063556,
+    "R191": -0.016701098457652108
+  },
+  "boa_delta_pp": 0.0788890819339656,
+  "scope": "Git原始数值、导出文件与展示一致性；没有重跑训练或推理"
+}

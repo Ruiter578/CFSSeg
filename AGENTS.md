@@ -1,29 +1,29 @@
 # SegACIL 项目级 Agent 规范
 
-适用范围：本文件位于 `/root/2TStorage/lyc/SegACIL`，覆盖整个 SegACIL / CFSSeg 2D 类增量语义分割项目。它叠加 `/root/2TStorage/AGENTS.md` 的全局规范；若二者冲突，以本文件中更贴近项目的规则为准，但不得降低全局质量底线。
+适用范围：当前仓库 `/data2/lyc/SegACIL`，覆盖 SegACIL / CFSSeg 项目。历史报告中的 `/root/2TStorage/lyc/SegACIL` 与 `/TRS-SAS/linwei/SegACIL` 是旧运行现场，不代表当前机器路径。
 
 ## 1. 项目事实
 
-- 项目根目录：`/root/2TStorage/lyc/SegACIL`。
+- 项目根目录：`/data2/lyc/SegACIL`。
 - 主要研究对象：CFSSeg / SegACIL 的 2D PASCAL VOC 2012 类增量语义分割代码。
 - 主数据集与协议：PASCAL VOC 2012，`15-5`，重点为 `sequential`，伪标签方法重点验证 `disjoint` / `overlap`。
-- 结项指标：`15-5` mIoU，已有值 64.3%，单模型目标 65.9%，集成系统目标 67.0%。
+- 研究约束：用户已取消必须采用集成学习的要求；集成路线暂停，保留历史证据。联邦持续分割是待验证候选，不是已实现主线。
 - 课题背景：为完成张教授纵向项目指标，在庄辉平副教授指导下，基于 CFSSeg 做可解释、可复现、能写论文的方法升级。
 - 预期成果：AI 会议论文，最低 EI；若涨点和故事线足够强，争取 CCF-B / CCF-A；专利在论文初稿后、正式投稿前再写。
-- 截止约束：2026 年底前论文被录用。
+- 历史文档记有“2026年底前录用”，该期限本次未重新确认，不承诺录用时间。
 
 做任何较大任务前，优先阅读：
 
 ```text
 AI_docs/课题Home.md
-Codex_Plans/5方法原理动机与基于优先级排序的完整工作流行动路线.md
-AI_docs/代码改动报告/6-25_DeepLabV3Plus主线融合执行与严格评审报告.md
-AI_docs/idea构思与实验设计/自适应伪标签阈值/6-21_自适应伪标签阈值Codex实现与独立实验执行方案.md
+AI_docs/2026-10-24_项目重启交接/00_阅读入口.md
+AI_docs/2026-10-24_项目重启交接/01_Git分支与代码进度核查.md
+AI_docs/2026-10-24_项目重启交接/03_方法与实验完整回顾.md
 ```
 
 ## 2. 当前技术基线
 
-- `main` 已集成 DeepLabV3+，当前 V3+ 不再需要额外验证实验或代码调整。
+- `main` 已完成 DeepLabV3+ 接口集成及历史 golden replay；当前迁移环境仍须恢复权重并做最小重放，再开展新实验。
 - `run.sh` 是统一入口，`MODEL` 可选 `deeplabv3_resnet101` 或 `deeplabv3plus_resnet101` 等模型。
 - `AIR_FEATURE_SOURCE=auto` 是推荐默认：
   - DeepLabV3 自动解析为 `decoder`；
@@ -31,6 +31,8 @@ AI_docs/idea构思与实验设计/自适应伪标签阈值/6-21_自适应伪标�
 - V3+ 最佳已验证体系是 `DeepLabV3+ + aspp_up AIR feature`，不是单纯只换模型名。
 - V3+ golden replay 已复现 `Mean IoU = 0.7035645831`。
 - 原 DeepLabV3 路径已有单元测试保护，不应被后续 RHL / 伪标签改动破坏。
+- clean holdout 的当前起点是 V3 + decoder、buffer8224、gamma1、norm none；不可与旧官方val-as-test约70%的结果横比。
+- 两个当前worktree均缺模型权重；旧conda解释器路径不存在。执行前先恢复环境、checkpoint并核对hash，历史测试报告不等于当前验证通过。
 
 关键代码位置：
 
@@ -46,11 +48,11 @@ AI_docs/idea构思与实验设计/自适应伪标签阈值/6-21_自适应伪标�
 | `utils/run_manifest.py` | 实验 manifest 与 checkpoint hash |
 | `utils/tasks.py` | VOC 任务划分 |
 
-## 3. 服务器和 GPU
+## 3. 历史服务器和 GPU
 
 | 名称 | 项目路径 | GPU | 说明 |
 |---|---|---|---|
-| A100 服务器 | `/root/2TStorage/lyc/SegACIL` | `CUDA_VISIBLE_DEVICES=0`，单卡 A100 80GB | 本机主开发/文档/验证服务器 |
+| A100 服务器 | `/root/2TStorage/lyc/SegACIL` | `CUDA_VISIBLE_DEVICES=0`，单卡 A100 80GB | 历史主开发现场，非当前路径 |
 | TRS 服务器 | `/TRS-SAS/linwei/SegACIL` | `CUDA_VISIBLE_DEVICES=2`，单卡 4090 48GB | 远端复现实验服务器 |
 
 GPU 任务规则：
@@ -74,15 +76,10 @@ export TMPDIR=/root/2TStorage/tmp
 
 ## 4. Git 和 worktree
 
-- A100 服务器当前可存在两个本地工作目录：
-  - `/root/2TStorage/lyc/SegACIL`：主开发目录；
-  - `/root/2TStorage/lyc/SegACIL_deeplabv3plus`：历史 V3+ worktree，已不再作为后续开发主线。
+- 当前注册worktree：`/data2/lyc/SegACIL`（main）与 `/data2/lyc/SegACIL_rhl_next`（feature/rhl-next）；每次任务仍须重新检查 `git worktree list`。
 - TRS 服务器通常只有一个 checkout：`/TRS-SAS/linwei/SegACIL`，通过 `git switch` 切换分支，工作区内容会随分支变化。
 - 新方法开发不要直接长期写在 `main`；从最新 `main` 新开 feature 分支，必要时新建 sibling worktree。
-- 不要删除 `SegACIL_deeplabv3plus` worktree，除非确认：
-  - `main` 已推远端；
-  - TRS 已能拉到最新 main；
-  - V3+ 报告和实验现场不再需要原地追溯。
+- 清理分支/worktree前保存独有代码、文档、忽略的实验产物及可达Git引用；旧V3+ worktree当前已不在注册列表。
 - 跨服务器同步顺序：
 
 ```bash
@@ -117,7 +114,7 @@ git pull --ff-only
 - `run_manifest.json` 是正式实验可追溯性的最低要求。
 - 不要用旧 summary 或未完成实验冒充最新结论。
 
-当前常用 A100 V3+ step1 入口示例：
+历史 A100 V3+ step1 入口示例（当前机器不能直接照抄路径；先恢复环境与权重）：
 
 ```bash
 cd /root/2TStorage/lyc/SegACIL
@@ -135,7 +132,8 @@ bash run.sh
 
 ## 6. RHL 和伪标签边界
 
-- 当前主要研究线是 RHL 机制改造和自适应伪标签阈值。
+- 自适应hard threshold与W1可靠性加权研究线已冻结；不默认继续W2/W3、q/min_conf/weight小网格。完整代码留在 `origin/feature/adaptive-pseudo-label`，main只归档结论。
+- RHL续作在 `feature/rhl-next`；BOA单点弱正向不等于多seed复核完成。PGH/PowerNorm/CA-C-RLS多数仍是提案。
 - RHL 的关键路径是 `RandomBuffer -> RecursiveLinear`，改动应尽量不破坏 C-RLS 闭式更新主公式。
 - RHL-SE 需要区分 `random_seed` 与 `rhl_seed`：只改变 RHL 子空间时，不能混入 dataloader、augmentation、全局随机性的变化。
 - 自适应伪标签不能默认套到 `15-5 sequential`：

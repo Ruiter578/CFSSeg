@@ -1,0 +1,7 @@
+﻿ref,commit,main_only,ref_only,head_date_subject,ai_docs_md
+main,087fa5e2a64975e5f09bfce501e12c7485bdb63d,0,0,"2026-07-20T04:30:25+00:00 7.18 E1.2 初筛比较的是 analytic_tail_epsilon, 0和1e-4两组实验与1e-3baseline比较",67
+feature/adaptive-pseudo-label,c9672f157ccd507546007bf093608571140b199b,36,14,2026-07-09T20:42:37+00:00 7-9 document adaptive pseudo-label results,62
+origin/feature/adaptive-pseudo-label,85d7ea1641563b2daba0f914d51d322048f23424,36,31,2026-07-19T16:14:03+00:00 docs: freeze adaptive pseudo-label threshold route,71
+origin/feature/deeplabv3plus-control,7fa27e03b6174729ae959a1e6df5e9726eb32287,71,16,2026-06-24T14:34:02+00:00 docs: finalize DeepLabV3+ integration plan,23
+origin/feature/rhl-next,804172c8ef705ef5ffe6acbb02bdc53c63962b58,1,7,2026-07-19T16:37:11+00:00 docs: record scheme c migration review,70
+origin/feature/rhl-se-boa-p0-p1,7701b1223ca0ec67a81cc18b3dc7bbd4d8d70159,64,4,2026-06-17T21:46:57+00:00 docs: review rhl p0 p1 implementation,34
